@@ -1,0 +1,1 @@
+& ".\packages\Google.Protobuf.Tools.3.1.0\tools\windows_x64\protoc.exe" -I.\proto\ --csharp_out ChocolateyGui.Subprocess\Rpc --grpc_out ChocolateyGui.Subprocess\Rpc .\proto\package_service.proto .\proto\models.proto --plugin=protoc-gen-grpc=.\packages\Grpc.Tools.1.0.1\tools\windows_x64\grpc_csharp_plugin.exe

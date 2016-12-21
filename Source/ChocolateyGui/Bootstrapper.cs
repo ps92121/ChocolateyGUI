@@ -16,6 +16,7 @@ using CefSharp;
 using chocolatey;
 using ChocolateyGui.Startup;
 using ChocolateyGui.ViewModels;
+using Grpc.Core;
 using Serilog;
 using Serilog.Events;
 
@@ -85,6 +86,8 @@ namespace ChocolateyGui
                 .WriteTo.Async(config =>
                     config.RollingFile(directPath, retainedFileCountLimit: 10, fileSizeLimitBytes: 150 * 1000 * 1000))
                 .CreateLogger();
+
+            GrpcEnvironment.SetLogger(new GrpcLogger(Logger.ForContext<GrpcLogger>()));
         }
 
         protected override void OnStartup(object sender, StartupEventArgs e)
@@ -130,6 +133,7 @@ namespace ChocolateyGui
 
         protected override void OnExit(object sender, EventArgs e)
         {
+            App.Job.Dispose();
             Logger.Information("Exiting.");
         }
 
@@ -146,7 +150,7 @@ namespace ChocolateyGui
         {
             if (e.IsTerminating)
             {
-                Logger.Fatal("Unhandled Exception", e.ExceptionObject as Exception);
+                Logger.Fatal(e.ExceptionObject as Exception, "Unhandled Exception. Terminating");
                 MessageBox.Show(
                     e.ExceptionObject.ToString(),
                     "Unhandled Exception",
@@ -157,7 +161,76 @@ namespace ChocolateyGui
             }
             else
             {
-                Logger.Error("Unhandled Exception", e.ExceptionObject as Exception);
+                Logger.Error(e.ExceptionObject as Exception, "Unhandled Exception");
+            }
+        }
+
+        private class GrpcLogger : Grpc.Core.Logging.ILogger
+        {
+            private readonly ILogger _sourceLogger = Log.ForContext<GrpcLogger>();
+
+            internal GrpcLogger()
+            {
+            }
+
+            internal GrpcLogger(ILogger newLogger)
+            {
+                _sourceLogger = newLogger;
+            }
+
+            public void Debug(string message)
+            {
+                _sourceLogger.Debug(message);
+            }
+
+            public void Debug(string format, params object[] formatArgs)
+            {
+                _sourceLogger.Debug(format, formatArgs);
+            }
+
+            public void Error(string message)
+            {
+                _sourceLogger.Error(message);
+            }
+
+            public void Error(Exception exception, string message)
+            {
+                _sourceLogger.Error(exception, message);
+            }
+
+            public void Error(string format, params object[] formatArgs)
+            {
+                _sourceLogger.Error(format, formatArgs);
+            }
+
+            public Grpc.Core.Logging.ILogger ForType<T>()
+            {
+                return new GrpcLogger(_sourceLogger.ForContext<T>());
+            }
+
+            public void Info(string message)
+            {
+                _sourceLogger.Information(message);
+            }
+
+            public void Info(string format, params object[] formatArgs)
+            {
+                _sourceLogger.Information(format, formatArgs);
+            }
+
+            public void Warning(string message)
+            {
+                _sourceLogger.Warning(message);
+            }
+
+            public void Warning(Exception exception, string message)
+            {
+                _sourceLogger.Warning(exception, message);
+            }
+
+            public void Warning(string format, params object[] formatArgs)
+            {
+                _sourceLogger.Warning(format, formatArgs);
             }
         }
     }

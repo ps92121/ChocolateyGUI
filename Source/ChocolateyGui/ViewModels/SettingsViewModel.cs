@@ -15,12 +15,11 @@ using System.Windows.Controls;
 using Caliburn.Micro;
 using ChocolateyGui.Models;
 using ChocolateyGui.Models.Messages;
+using ChocolateyGui.Rpc;
 using ChocolateyGui.Services;
-using ChocolateyGui.Subprocess.Models;
 using ChocolateyGui.Utilities.Extensions;
 using NuGet;
 using Serilog;
-using WampSharp.V2.Core.Contracts;
 using ILogger = Serilog.ILogger;
 
 namespace ChocolateyGui.ViewModels
@@ -130,32 +129,12 @@ namespace ChocolateyGui.ViewModels
 
         public async Task UpdateFeature(ChocolateyFeature feature)
         {
-            try
-            {
-                await _packageService.SetFeature(feature);
-            }
-            catch (WampException ex)
-            {
-                Logger.Error(ex, "Failed to update features list!\nMessage: {Message}\nArguments: {Arguments}", ex.Message, ex.Arguments);
-                await _progressService.ShowMessageAsync(
-                    "Feature Updates Error",
-                    $"Failed to update features. Error:\n{string.Join("\v", ex.Arguments)}");
-            }
+            await _packageService.SetFeature(feature);
         }
 
         public async Task UpdateSetting(ChocolateySetting setting)
         {
-            try
-            {
-                await _packageService.SetSetting(setting);
-            }
-            catch (WampException ex)
-            {
-                Logger.Error(ex, "Failed to update features list!\nMessage: {Message}\nArguments: {Arguments}", ex.Message, ex.Arguments);
-                await _progressService.ShowMessageAsync(
-                    "Feature Updates Error",
-                    $"Failed to update features. Error:\n{string.Join("\v", ex.Arguments)}");
-            }
+            await _packageService.SetSetting(setting);
         }
 
         public void New()

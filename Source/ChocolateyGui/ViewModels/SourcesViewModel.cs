@@ -12,8 +12,8 @@ using System.Reactive.Linq;
 using System.Threading.Tasks;
 using Caliburn.Micro;
 using ChocolateyGui.Models.Messages;
+using ChocolateyGui.Rpc;
 using ChocolateyGui.Services;
-using ChocolateyGui.Subprocess.Models;
 
 namespace ChocolateyGui.ViewModels
 {

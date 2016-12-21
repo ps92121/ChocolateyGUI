@@ -29,6 +29,30 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "AppVeyor", "AppVeyor", "{C6
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ChocolateyGui.Subprocess", "ChocolateyGui.Subprocess\ChocolateyGui.Subprocess.csproj", "{20510788-DD8D-42E0-A2D9-430C6C2CED44}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "proto", "proto", "{17B7E0D8-EBF6-4B8B-938D-D099625A98E0}"
+	ProjectSection(SolutionItems) = preProject
+		generate_rpc.txt = generate_rpc.txt
+		proto\models.proto = proto\models.proto
+		proto\package_service.proto = proto\package_service.proto
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "google", "google", "{FF6F9481-ABC2-4A48-B526-91F49C349CE5}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "protobuf", "protobuf", "{4FB63FAD-6C30-4689-B3AC-59FC8F9FFD8D}"
+	ProjectSection(SolutionItems) = preProject
+		proto\google\protobuf\any.proto = proto\google\protobuf\any.proto
+		proto\google\protobuf\api.proto = proto\google\protobuf\api.proto
+		proto\google\protobuf\descriptor.proto = proto\google\protobuf\descriptor.proto
+		proto\google\protobuf\duration.proto = proto\google\protobuf\duration.proto
+		proto\google\protobuf\empty.proto = proto\google\protobuf\empty.proto
+		proto\google\protobuf\field_mask.proto = proto\google\protobuf\field_mask.proto
+		proto\google\protobuf\source_context.proto = proto\google\protobuf\source_context.proto
+		proto\google\protobuf\struct.proto = proto\google\protobuf\struct.proto
+		proto\google\protobuf\timestamp.proto = proto\google\protobuf\timestamp.proto
+		proto\google\protobuf\type.proto = proto\google\protobuf\type.proto
+		proto\google\protobuf\wrappers.proto = proto\google\protobuf\wrappers.proto
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x86 = Debug|x86
@@ -50,5 +74,9 @@ Global
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{FF6F9481-ABC2-4A48-B526-91F49C349CE5} = {17B7E0D8-EBF6-4B8B-938D-D099625A98E0}
+		{4FB63FAD-6C30-4689-B3AC-59FC8F9FFD8D} = {FF6F9481-ABC2-4A48-B526-91F49C349CE5}
 	EndGlobalSection
 EndGlobal

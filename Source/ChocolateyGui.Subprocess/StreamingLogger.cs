@@ -9,13 +9,11 @@ namespace ChocolateyGui.Subprocess
     internal class StreamingLogger : ILog
     {
         private static readonly ILogger Logger = Serilog.Log.ForContext<StreamingLogger>();
-        protected ISubject<StreamingLogMessage> Subject;
         private string _context;
         private Action<StreamingLogMessage> _interceptor;
 
-        public StreamingLogger(ISubject<StreamingLogMessage> subject)
+        public StreamingLogger()
         {
-            Subject = subject;
         }
 
         public void InitializeFor(string loggerName)
@@ -38,7 +36,6 @@ namespace ChocolateyGui.Subprocess
                 Message = string.Format(message, formatting)
             };
             _interceptor?.Invoke(logMessage);
-            Subject.OnNext(logMessage);
         }
 
         public void Debug(Func<string> message)
@@ -51,7 +48,6 @@ namespace ChocolateyGui.Subprocess
                 Message = message()
             };
             _interceptor?.Invoke(logMessage);
-            Subject.OnNext(logMessage);
         }
 
         public void Info(string message, params object[] formatting)
@@ -64,7 +60,6 @@ namespace ChocolateyGui.Subprocess
                 Message = string.Format(message, formatting)
             };
             _interceptor?.Invoke(logMessage);
-            Subject.OnNext(logMessage);
         }
 
         public void Info(Func<string> message)
@@ -77,7 +72,6 @@ namespace ChocolateyGui.Subprocess
                 Message = message()
             };
             _interceptor?.Invoke(logMessage);
-            Subject.OnNext(logMessage);
         }
 
         public void Warn(string message, params object[] formatting)
@@ -90,7 +84,6 @@ namespace ChocolateyGui.Subprocess
                 Message = string.Format(message, formatting)
             };
             _interceptor?.Invoke(logMessage);
-            Subject.OnNext(logMessage);
         }
 
         public void Warn(Func<string> message)
@@ -103,7 +96,6 @@ namespace ChocolateyGui.Subprocess
                 Message = message()
             };
             _interceptor?.Invoke(logMessage);
-            Subject.OnNext(logMessage);
         }
 
         public void Error(string message, params object[] formatting)
@@ -116,7 +108,6 @@ namespace ChocolateyGui.Subprocess
                 Message = string.Format(message, formatting)
             };
             _interceptor?.Invoke(logMessage);
-            Subject.OnNext(logMessage);
         }
 
         public void Error(Func<string> message)
@@ -129,7 +120,6 @@ namespace ChocolateyGui.Subprocess
                 Message = message()
             };
             _interceptor?.Invoke(logMessage);
-            Subject.OnNext(logMessage);
         }
 
         public void Fatal(string message, params object[] formatting)
@@ -142,7 +132,6 @@ namespace ChocolateyGui.Subprocess
                 Message = string.Format(message, formatting)
             };
             _interceptor?.Invoke(logMessage);
-            Subject.OnNext(logMessage);
         }
 
         public void Fatal(Func<string> message)
@@ -155,7 +144,6 @@ namespace ChocolateyGui.Subprocess
                 Message = message()
             };
             _interceptor?.Invoke(logMessage);
-            Subject.OnNext(logMessage);
         }
 
         public class InterceptMessages : IDisposable

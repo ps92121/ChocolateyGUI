@@ -15,19 +15,14 @@ using System.Threading.Tasks;
 using System.Windows;
 using AutoMapper;
 using Caliburn.Micro;
-using ChocolateyGui.Interface;
-using ChocolateyGui.Models;
 using ChocolateyGui.Models.Messages;
 using ChocolateyGui.Providers;
-using ChocolateyGui.Subprocess.Models;
+using ChocolateyGui.Rpc;
 using ChocolateyGui.Utilities;
 using ChocolateyGui.ViewModels.Items;
+using Grpc.Core;
 using NuGet;
 using Serilog;
-using WampSharp.V2;
-using WampSharp.V2.Client;
-using WampSharp.V2.Core.Contracts;
-using WampSharp.V2.Fluent;
 using PackageSearchResults = ChocolateyGui.Models.PackageSearchResults;
 
 namespace ChocolateyGui.Services
@@ -43,9 +38,8 @@ namespace ChocolateyGui.Services
         private readonly AsyncLock _lock = new AsyncLock();
 
         private Process _chocolateyProcess;
-        private IWampChannel _wampChannel;
-        private IChocolateyService _chocolateyService;
-        private IDisposable _logStream;
+        private Channel _channel;
+        private PackageService.PackageServiceClient _chocolateyService;
         private bool _isInitialized;
         private bool? _requiresElevation;
         private Lazy<bool> _forceElevation;
@@ -65,10 +59,10 @@ namespace ChocolateyGui.Services
             _forceElevation = new Lazy<bool>(() => _configService.GetSettings().ElevateByDefault);
         }
 
-        public async Task<PackageSearchResults> Search(string query, PackageSearchOptions options)
+        public async Task<PackageSearchResults> Search(PackageSearchArgs options)
         {
             await Initialize();
-            var results = await _chocolateyService.Search(query, options);
+            var results = await _chocolateyService.SearchAsync(options);
             return new PackageSearchResults
                        {
                            Packages =
@@ -81,37 +75,38 @@ namespace ChocolateyGui.Services
         public async Task<IPackageViewModel> GetByVersionAndIdAsync(string id, SemanticVersion version, bool isPrerelease)
         {
             await Initialize();
-            var result = await _chocolateyService.GetByVersionAndIdAsync(id, version.ToString(), isPrerelease);
+            var result = await _chocolateyService.GetByVersionAndIdAsync(new GetPackageArgs { Id = id, Version = version.ToString(), IsPrerelease = isPrerelease});
             return _mapper.Map(result, _packageFactory());
         }
 
         public async Task<IEnumerable<IPackageViewModel>> GetInstalledPackages(bool force = false)
         {
-            await Initialize();
-            var packages = await _chocolateyService.GetInstalledPackages();
-            var vms = packages.Select(p => _mapper.Map(p, _packageFactory()));
+            await Initialize().ConfigureAwait(false);
+            var reply = await _chocolateyService.GetInstalledPackagesAsync(Empty.Instance);
+            var vms = reply.Packages.Select(p => _mapper.Map(p, _packageFactory()));
             return vms;
         }
 
         public async Task<IReadOnlyList<Tuple<string, SemanticVersion>>> GetOutdatedPackages(bool includePrerelease = false)
         {
             await Initialize();
-            var results = await _chocolateyService.GetOutdatedPackages(includePrerelease);
-            var parsed = results.Select(result => Tuple.Create(result.Item1, new SemanticVersion(result.Item2)));
-            return parsed.ToList();
+            var results = _chocolateyService.GetOutdatedPackages(new OutdatedArgs { IncludePrerelease = includePrerelease });
+            var outdated = new List<Tuple<string, SemanticVersion>>();
+            while (await results.ResponseStream.MoveNext())
+            {
+                var current = results.ResponseStream.Current;
+                outdated.Add(Tuple.Create(current.Id, new SemanticVersion(current.Version)));
+            }
+
+            return outdated.ToList();
         }
 
-        public async Task InstallPackage(string id, SemanticVersion version = null, Uri source = null, bool force = false)
+        public async Task InstallPackage(string id, SemanticVersion version = null, string source = null, bool force = false)
         {
             await Initialize(true);
-            var result = await _chocolateyService.InstallPackage(id, version?.ToString(), source, force);
-            if (!result.Successful)
+            var result = await _chocolateyService.InstallPackageAsync(new InstallPackageArgs {Id = id, Version = version?.ToString(), Source = source, Force = force});
+            if (await HandleError(result, "install", id, version?.ToString()))
             {
-                var exceptionMessage = result.Exception == null ? "" : $"\nException: {result.Exception}";
-                await _progressService.ShowMessageAsync(
-                    "Failed to install package.",
-                    $"Failed to install package \"{id}\", version \"{version}\".\nError: {string.Join("\n", result.Messages)}{exceptionMessage}");
-                Logger.Warning(result.Exception, "Failed to install {Package}, version {Version}. Errors: {Errors}", id, version, result.Messages);
                 return;
             }
 
@@ -121,31 +116,21 @@ namespace ChocolateyGui.Services
         public async Task UninstallPackage(string id, SemanticVersion version, bool force = false)
         {
             await Initialize(true);
-            var result = await _chocolateyService.UninstallPackage(id, version.ToString(), force);
-            if (!result.Successful)
+            var result = await _chocolateyService.UninstallPackageAsync(new UninstallPackageArgs { Id = id, Version = version.ToString(), Force = force});
+            if (await HandleError(result, "uninstall", id, version.ToString()))
             {
-                var exceptionMessage = result.Exception == null ? "" : $"\nException: {result.Exception}";
-                await _progressService.ShowMessageAsync(
-                    "Failed to uninstall package.",
-                    $"Failed to uninstall package \"{id}\", version \"{version}\".\nError: {string.Join("\n", result.Messages)}{exceptionMessage}");
-                Logger.Warning(result.Exception, "Failed to uninstall {Package}, version {Version}. Errors: {Errors}", id, version, result.Messages);
                 return;
             }
 
             _eventAggregator.BeginPublishOnUIThread(new PackageChangedMessage(id, PackageChangeType.Uninstalled, version));
         }
 
-        public async Task UpdatePackage(string id, Uri source = null)
+        public async Task UpdatePackage(string id, string source = null)
         {
             await Initialize(true);
-            var result = await _chocolateyService.UpdatePackage(id, source);
-            if (!result.Successful)
+            var result = await _chocolateyService.UpdatePackageAsync(new UpdatePackageArgs { Id = id, Source = source});
+            if (await HandleError(result, "update", id))
             {
-                var exceptionMessage = result.Exception == null ? "" : $"\nException: {result.Exception}";
-                await _progressService.ShowMessageAsync(
-                    "Failed to update package.",
-                    $"Failed to update package \"{id}\".\nError: {string.Join("\n", result.Messages)}{exceptionMessage}");
-                Logger.Warning(result.Exception, "Failed to update {Package}. Errors: {Errors}", id, result.Messages);
                 return;
             }
 
@@ -155,14 +140,9 @@ namespace ChocolateyGui.Services
         public async Task PinPackage(string id, SemanticVersion version)
         {
             await Initialize(true);
-            var result = await _chocolateyService.PinPackage(id, version.ToString());
-            if (!result.Successful)
+            var result = await _chocolateyService.PinPackageAsync(new PinPackageArgs { Id = id, Version = version.ToString()});
+            if (await HandleError(result, "pin", id, version.ToString()))
             {
-                var exceptionMessage = result.Exception == null ? "" : $"\nException: {result.Exception}";
-                await _progressService.ShowMessageAsync(
-                    "Failed to pin package.",
-                    $"Failed to pin package \"{id}\", version \"{version}\".\nError: {string.Join("\n", result.Messages)}{exceptionMessage}");
-                Logger.Warning(result.Exception, "Failed to pin {Package}, version {Version}. Errors: {Errors}", id, version, result.Messages);
                 return;
             }
 
@@ -172,14 +152,9 @@ namespace ChocolateyGui.Services
         public async Task UnpinPackage(string id, SemanticVersion version)
         {
             await Initialize(true);
-            var result = await _chocolateyService.UnpinPackage(id, version.ToString());
-            if (!result.Successful)
+            var result = await _chocolateyService.UnpinPackageAsync(new PinPackageArgs {Id = id, Version = version.ToString()});
+            if (await HandleError(result, "unpin", id, version.ToString()))
             {
-                var exceptionMessage = result.Exception == null ? "" : $"\nException: {result.Exception}";
-                await _progressService.ShowMessageAsync(
-                    "Failed to unpin package.",
-                    $"Failed to unpin package \"{id}\", version \"{version}\".\nError: {string.Join("\n", result.Messages)}{exceptionMessage}");
-                Logger.Warning(result.Exception, "Failed to unpin {Package}, version {Version}. Errors: {Errors}", id, version, result.Messages);
                 return;
             }
 
@@ -189,49 +164,50 @@ namespace ChocolateyGui.Services
         public async Task<IReadOnlyList<ChocolateyFeature>> GetFeatures()
         {
             await Initialize();
-            return await _chocolateyService.GetFeatures();
+            return await ToList(_chocolateyService.GetFeatures(Empty.Instance));
         }
 
         public async Task SetFeature(ChocolateyFeature feature)
         {
             await Initialize(true);
-            await _chocolateyService.SetFeature(feature);
+            await _chocolateyService.SetFeatureAsync(feature);
         }
 
         public async Task<IReadOnlyList<ChocolateySetting>> GetSettings()
         {
             await Initialize();
-            return await _chocolateyService.GetSettings();
+            return await ToList(_chocolateyService.GetSettings(Empty.Instance));
         }
 
         public async Task SetSetting(ChocolateySetting setting)
         {
             await Initialize(true);
-            await _chocolateyService.SetSetting(setting);
+            await _chocolateyService.SetSettingAsync(setting);
         }
 
         public async Task<IReadOnlyList<ChocolateySource>> GetSources()
         {
-            await Initialize();
-            return await _chocolateyService.GetSources();
+            await Initialize().ConfigureAwait(false);
+            return await ToList(_chocolateyService.GetSources(Empty.Instance));
         }
 
         public async Task AddSource(ChocolateySource source)
         {
             await Initialize(true);
-            await _chocolateyService.AddSource(source);
+            await _chocolateyService.AddSourceAsync(source);
         }
 
         public async Task UpdateSource(string id, ChocolateySource source)
         {
             await Initialize(true);
-            await _chocolateyService.UpdateSource(id, source);
+            await _chocolateyService.UpdateSourceAsync(new UpdateSourceArgs { Id = id, Source = source});
         }
 
         public async Task<bool> RemoveSource(string id)
         {
             await Initialize(true);
-            return await _chocolateyService.RemoveSource(id);
+            var reply = await _chocolateyService.RemoveSourceAsync(new RemoveSourceArgs { Id = id });
+            return reply.Successful;
         }
 
         public ValueTask<bool> RequiresElevation()
@@ -241,20 +217,69 @@ namespace ChocolateyGui.Services
 
         public void Dispose()
         {
-            _logStream?.Dispose();
-            _wampChannel?.Close("Exiting", new GoodbyeDetails { Message = "Exiting" });
+            try
+            {
+                _chocolateyService.Exit(Empty.Instance);
+            }
+            catch (RpcException)
+            {
+            }
         }
 
         private async Task<bool> RequiresElevationImpl()
         {
             await Initialize();
-            _requiresElevation = !await _chocolateyService.IsElevated();
+            _requiresElevation = !(await _chocolateyService.IsElevatedAsync(Empty.Instance)).IsElevated;
             return _requiresElevation.Value;
         }
-
-        private Task Initialize(bool requireAdmin = false)
+        
+        private async Task<bool> HandleError(PackageOperationResult result, string verb, string id, string version = null)
         {
-            return Task.Run(() => InitializeImpl(requireAdmin));
+            if (!result.Successful)
+            {
+                var exceptionMessage = result.ExceptionMessage == null ? "" : $"\nException: {result.ExceptionMessage}";
+                if (version != null)
+                {
+                    await _progressService.ShowMessageAsync(
+                        "Failed to {verb} package.",
+                        $"Failed to {verb} package \"{id}\", version \"{version}\".\nError: {string.Join("\n", result.Messages)}{exceptionMessage}");
+                    Logger.Warning(
+                        "Failed to {verb} {Package}, version {Version}. Errors: {Errors}. Exception: {Exception}",
+                        id,
+                        version,
+                        result.Messages,
+                        result.ExceptionMessage);
+                }
+                else
+                {
+                    await _progressService.ShowMessageAsync(
+                        "Failed to {verb} package.",
+                        $"Failed to {verb} package \"{id}\".\nError: {string.Join("\n", result.Messages)}{exceptionMessage}");
+                    Logger.Warning(
+                        "Failed to {verb} {Package}. Errors: {Errors}. Exception: {Exception}",
+                        id,
+                        result.Messages,
+                        result.ExceptionMessage);
+                }
+            }
+
+            return !result.Successful;
+        }
+
+        private async Task<IReadOnlyList<T>> ToList<T>(AsyncServerStreamingCall<T> stream)
+        {
+            var result = new List<T>();
+            while (await stream.ResponseStream.MoveNext())
+            {
+                result.Add(stream.ResponseStream.Current);
+            }
+
+            return result;
+        } 
+
+        private async Task Initialize(bool requireAdmin = false)
+        {
+            await Task.Run(() => InitializeImpl(requireAdmin)).ConfigureAwait(false);
         }
 
         private async Task InitializeImpl(bool requireAdmin = false)
@@ -264,27 +289,25 @@ namespace ChocolateyGui.Services
             // Check if we're not already initialized or running, as well as our permissions level.
             if (_isInitialized)
             {
-                if (!requireAdmin || await _chocolateyService.IsElevated())
+                if (!requireAdmin || (await _chocolateyService.IsElevatedAsync(Empty.Instance)).IsElevated)
                 {
                     return;
                 }
             }
 
-            using (await _lock.LockAsync())
+            using (await _lock.LockAsync().ConfigureAwait(false))
             {
                 // Double check our initialization and permissions status.
                 if (_isInitialized)
                 {
-                    if (!requireAdmin || await _chocolateyService.IsElevated())
+                    if (!requireAdmin || (await _chocolateyService.IsElevatedAsync(Empty.Instance)).IsElevated)
                     {
                         return;
                     }
 
                     _isInitialized = false;
-                    _logStream.Dispose();
-                    _logStream = null;
-                    _wampChannel.Close("Escalating", new GoodbyeDetails { Message = "Escalating" });
-                    _wampChannel = null;
+                    await _channel.ShutdownAsync();
+                    _channel = null;
                     _chocolateyService = null;
 
                     if (!_chocolateyProcess.HasExited)
@@ -321,8 +344,7 @@ namespace ChocolateyGui.Services
                     catch (Win32Exception ex)
                     {
                         Logger.Error(ex, "Failed to start chocolatey gui subprocess.");
-                        throw new ApplicationException(
-                            $"Failed to elevate chocolatey: {ex.Message}.");
+                        throw new ApplicationException($"Failed to elevate chocolatey: {ex.Message}.");
                     }
 
                     Debug.Assert(_chocolateyProcess != null, "_chocolateyProcess != null");
@@ -334,8 +356,9 @@ namespace ChocolateyGui.Services
                             Log.Logger.Fatal(
                                 "Failed to start Chocolatey subprocess. Exit Code {ExitCode}.",
                                 _chocolateyProcess.ExitCode);
-                            throw new ApplicationException($"Failed to start chocolatey subprocess.\n"
-                                                           + $"You can check the log file at {Path.Combine(Bootstrapper.AppDataPath, "ChocolateyGui.Subprocess.[Date].log")} for errors");
+                            throw new ApplicationException(
+                                $"Failed to start chocolatey subprocess.\n"
+                                + $"You can check the log file at {Path.Combine(Bootstrapper.AppDataPath, "ChocolateyGui.Subprocess.[Date].log")} for errors");
                         }
 
                         if (!_chocolateyProcess.WaitForExit(TimeSpan.FromSeconds(3).Milliseconds)
@@ -345,8 +368,9 @@ namespace ChocolateyGui.Services
                             Log.Logger.Fatal(
                                 "Failed to start Chocolatey subprocess. Process appears to be broken or otherwise non-functional.",
                                 _chocolateyProcess.ExitCode);
-                            throw new ApplicationException($"Failed to start chocolatey subprocess.\n"
-                                                           + $"You can check the log file at {Path.Combine(Bootstrapper.AppDataPath, "ChocolateyGui.Subprocess.[Date].log")} for errors");
+                            throw new ApplicationException(
+                                $"Failed to start chocolatey subprocess.\n"
+                                + $"You can check the log file at {Path.Combine(Bootstrapper.AppDataPath, "ChocolateyGui.Subprocess.[Date].log")} for errors");
                         }
                         else
                         {
@@ -355,8 +379,9 @@ namespace ChocolateyGui.Services
                                 Log.Logger.Fatal(
                                     "Failed to start Chocolatey subprocess. Exit Code {ExitCode}.",
                                     _chocolateyProcess.ExitCode);
-                                throw new ApplicationException($"Failed to start chocolatey subprocess.\n"
-                                                               + $"You can check the log file at {Path.Combine(Bootstrapper.AppDataPath, "ChocolateyGui.Subprocess.[Date].log")} for errors");
+                                throw new ApplicationException(
+                                    $"Failed to start chocolatey subprocess.\n"
+                                    + $"You can check the log file at {Path.Combine(Bootstrapper.AppDataPath, "ChocolateyGui.Subprocess.[Date].log")} for errors");
                             }
                         }
                     }
@@ -366,59 +391,22 @@ namespace ChocolateyGui.Services
                         Log.Logger.Fatal(
                             "Failed to start Chocolatey subprocess. Exit Code {ExitCode}.",
                             _chocolateyProcess.ExitCode);
-                        throw new ApplicationException($"Failed to start chocolatey subprocess.\n"
-                                                       + $"You can check the log file at {Path.Combine(Bootstrapper.AppDataPath, "ChocolateyGui.Subprocess.[Date].log")} for errors");
+                        throw new ApplicationException(
+                            $"Failed to start chocolatey subprocess.\n"
+                            + $"You can check the log file at {Path.Combine(Bootstrapper.AppDataPath, "ChocolateyGui.Subprocess.[Date].log")} for errors");
                     }
                 }
 
-                var factory = new WampChannelFactory();
-                _wampChannel =
-                    factory.ConnectToRealm("default")
-                        .WebSocketTransport($"ws://127.0.0.1:{Port}/ws")
-                        .JsonSerialization()
-                        .Build();
+                App.Job.AddProcess(_chocolateyProcess.Handle);
 
-                await _wampChannel.Open().ConfigureAwait(false);
+                _channel = new Channel($"127.0.0.1:{Port}", ChannelCredentials.Insecure);
                 _isInitialized = true;
 
-                _chocolateyService = _wampChannel.RealmProxy.Services.GetCalleeProxy<IChocolateyService>();
-
-                // Create pipe for chocolatey stream output.
-                var logStream = _wampChannel.RealmProxy.Services.GetSubject<StreamingLogMessage>("com.chocolatey.log");
-                _logStream = logStream.Subscribe(
-                    message =>
-                        {
-                            PowerShellLineType powerShellLineType;
-                            switch (message.LogLevel)
-                            {
-                                case StreamingLogLevel.Debug:
-                                    powerShellLineType = PowerShellLineType.Debug;
-                                    break;
-                                case StreamingLogLevel.Verbose:
-                                    powerShellLineType = PowerShellLineType.Verbose;
-                                    break;
-                                case StreamingLogLevel.Info:
-                                    powerShellLineType = PowerShellLineType.Output;
-                                    break;
-                                case StreamingLogLevel.Warn:
-                                    powerShellLineType = PowerShellLineType.Warning;
-                                    break;
-                                case StreamingLogLevel.Error:
-                                    powerShellLineType = PowerShellLineType.Error;
-                                    break;
-                                case StreamingLogLevel.Fatal:
-                                    powerShellLineType = PowerShellLineType.Error;
-                                    break;
-                                default:
-                                    powerShellLineType = PowerShellLineType.Output;
-                                    break;
-                            }
-
-                            _progressService.WriteMessage(message.Message, powerShellLineType);
-                        });
+                _chocolateyService = new PackageService.PackageServiceClient(_channel);
 
                 // ReSharper disable once PossibleNullReferenceException
-                ((ElevationStatusProvider)Application.Current.FindResource("Elevation")).IsElevated = await _chocolateyService.IsElevated();
+                ((ElevationStatusProvider)Application.Current.FindResource("Elevation")).IsElevated =
+                    (await _chocolateyService.IsElevatedAsync(Empty.Instance)).IsElevated;
             }
         }
     }

@@ -323,7 +323,7 @@ namespace ChocolateyGui.ViewModels.Items
             {
                 using (await StartProgressDialog("Installing package", "Installing package", Id))
                 {
-                    await _chocolateyService.InstallPackage(Id, Version, Source).ConfigureAwait(false);
+                    await _chocolateyService.InstallPackage(Id, Version, Source?.ToString()).ConfigureAwait(false);
                 }
             }
             catch (Exception ex)
@@ -339,7 +339,7 @@ namespace ChocolateyGui.ViewModels.Items
             {
                 using (await StartProgressDialog("Reinstalling package", "Reinstalling package", Id))
                 {
-                    await _chocolateyService.InstallPackage(Id, Version, Source, true).ConfigureAwait(false);
+                    await _chocolateyService.InstallPackage(Id, Version, Source?.ToString(), true).ConfigureAwait(false);
                 }
             }
             catch (Exception ex)
@@ -373,7 +373,7 @@ namespace ChocolateyGui.ViewModels.Items
             {
                 using (await StartProgressDialog("Updating package", "Updating package", Id))
                 {
-                    await _chocolateyService.UpdatePackage(Id, Source).ConfigureAwait(false);
+                    await _chocolateyService.UpdatePackage(Id, Source?.ToString()).ConfigureAwait(false);
                 }
             }
             catch (Exception ex)

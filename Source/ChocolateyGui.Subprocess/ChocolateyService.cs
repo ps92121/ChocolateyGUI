@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Reactive.Subjects;
 using System.Threading.Tasks;
 using AutoMapper;
 using chocolatey;
@@ -11,63 +10,75 @@ using chocolatey.infrastructure.app.domain;
 using chocolatey.infrastructure.app.nuget;
 using chocolatey.infrastructure.results;
 using chocolatey.infrastructure.services;
-using ChocolateyGui.Interface;
 using ChocolateyGui.Models;
-using ChocolateyGui.Subprocess.Models;
+using ChocolateyGui.Rpc;
+using Grpc.Core;
+using Grpc.Core.Utils;
 using Nito.AsyncEx;
 using NuGet;
-using WampSharp.V2.Core.Contracts;
-using ChocolateySource = ChocolateyGui.Subprocess.Models.ChocolateySource;
+using ChocolateySource = ChocolateyGui.Rpc.ChocolateySource;
 using ILogger = Serilog.ILogger;
 
 namespace ChocolateyGui.Subprocess
 {
-    internal class ChocolateyService : IChocolateyService
+    internal class ChocolateyService : PackageService.PackageServiceBase
     {
         private static readonly ILogger Logger = Serilog.Log.ForContext<ChocolateyService>();
         private static readonly AsyncReaderWriterLock Lock = new AsyncReaderWriterLock();
 
         private readonly StreamingLogger _streamingLogger;
 
-        public ChocolateyService(ISubject<StreamingLogMessage> loggingSubject)
+        public ChocolateyService()
         {
             Logger.Debug("Connecting to streaming log endpoint.");
-            _streamingLogger = new StreamingLogger(loggingSubject);
+            _streamingLogger = new StreamingLogger();
         }
 
-        public Task<bool> IsElevated()
+        public override Task<IsElevatedResult> IsElevated(Empty request, ServerCallContext context)
         {
-            return Task.FromResult(Hacks.IsElevated);
+            return Task.FromResult(new IsElevatedResult { IsElevated = Hacks.IsElevated });
         }
 
-        public async Task<IReadOnlyList<Package>> GetInstalledPackages()
+        public override async Task<PackagesList> GetInstalledPackages(Empty request, ServerCallContext context)
         {
-            using (await Lock.ReaderLockAsync())
+            try
             {
-                var choco = Lets.GetChocolatey().SetCustomLogging(_streamingLogger);
-                choco.Set(
-                    config =>
-                        {
-                            config.CommandName = CommandNameType.list.ToString();
-                            config.ListCommand.LocalOnly = true;
-                        });
-                return
-                    (await choco.ListAsync<PackageResult>()).Select(package => GetMappedPackage(package, true)).ToList();
+                using (await Lock.ReaderLockAsync())
+                {
+                    var choco = Lets.GetChocolatey().SetCustomLogging(_streamingLogger);
+                    choco.Set(
+                        config =>
+                            {
+                                config.CommandName = CommandNameType.list.ToString();
+                                config.ListCommand.LocalOnly = true;
+                            });
+                    var packageResult =
+                        (await choco.ListAsync<PackageResult>(context.CancellationToken)).Select(
+                            package => GetMappedPackage(package, true)).ToList();
+                    var result = new PackagesList();
+                    result.Packages.Add(packageResult);
+                    return result;
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(ex, "Failed to retived install packages.");
+                throw;
             }
         }
 
-        public async Task<IReadOnlyList<Tuple<string, string>>> GetOutdatedPackages(bool includePrerelease = false)
+        public override async Task GetOutdatedPackages(OutdatedArgs request, IServerStreamWriter<OutdatedResult> responseStream, ServerCallContext context)
         {
             using (await Lock.ReaderLockAsync())
             {
                 var choco = Lets.GetChocolatey().SetCustomLogging(_streamingLogger);
                 choco.Set(
                     config =>
-                        {
-                            config.CommandName = "outdated";
-                            config.RegularOutput = false;
-                            config.Prerelease = false;
-                        });
+                    {
+                        config.CommandName = "outdated";
+                        config.RegularOutput = false;
+                        config.Prerelease = request.IncludePrerelease;
+                    });
 
                 var chocoConfig = choco.GetConfiguration();
                 var nugetLogger = new ChocolateyNugetLogger();
@@ -84,120 +95,57 @@ namespace ChocolateyGui.Subprocess
                         .Where(p => !packageInfoService.get_package_information(p).IsPinned);
                 var updateable =
                     await Task.Run(() => packageManager.SourceRepository.GetUpdates(ids, false, false).ToList());
-                return updateable.Select(p => Tuple.Create(p.Id, p.Version.ToNormalizedString())).ToList();
+
+                await responseStream.WriteAllAsync(
+                    updateable.Select(p => new OutdatedResult { Id = p.Id, Version = p.Version.ToString() }));
             }
         }
 
-        public async Task<PackageOperationResult> InstallPackage(string id, string version = null, Uri source = null,
-            bool force = false)
-        {
-            using (await Lock.WriterLockAsync())
-            {
-                var choco = Lets.GetChocolatey().SetCustomLogging(_streamingLogger);
-                choco.Set(
-                    config =>
-                        {
-                            config.CommandName = CommandNameType.install.ToString();
-                            config.PackageNames = id;
-                            config.Features.UsePackageExitCodes = false;
-
-                            if (version != null)
-                            {
-                                config.Version = version.ToString();
-                            }
-
-                            if (source != null)
-                            {
-                                config.Sources = source.ToString();
-                            }
-
-                            if (force)
-                            {
-                                config.Force = true;
-                            }
-                        });
-
-                var errors = new List<string>();
-                Action<StreamingLogMessage> grabErrors = m =>
-                    {
-                        switch (m.LogLevel)
-                        {
-                            case StreamingLogLevel.Warn:
-                            case StreamingLogLevel.Error:
-                            case StreamingLogLevel.Fatal:
-                                errors.Add(m.Message);
-                                break;
-                        }
-                    };
-
-                using (_streamingLogger.Intercept(grabErrors))
-                {
-                    await choco.RunAsync();
-
-                    if (Environment.ExitCode != 0)
-                    {
-                        Environment.ExitCode = 0;
-                        return new PackageOperationResult { Successful = false, Messages = errors };
-                    }
-                    return PackageOperationResult.SuccessfulCached;
-                }
-            }
-        }
-        public async Task<PackageSearchResults> Search(string query, PackageSearchOptions options)
+        public override async Task<PackageSearchReply> Search(PackageSearchArgs request, ServerCallContext context)
         {
             using (await Lock.ReaderLockAsync())
             {
                 var choco = Lets.GetChocolatey().SetCustomLogging(_streamingLogger).Set(
                     config =>
+                    {
+                        config.CommandName = CommandNameType.list.ToString();
+                        config.Input = request.Query;
+                        config.AllowUnofficialBuild = true;
+                        config.AllVersions = request.IncludeAllVersions;
+                        config.Prerelease = request.IncludePrerelease;
+                        config.ListCommand.Page = request.CurrentPage;
+                        config.ListCommand.PageSize = request.PageSize;
+                        if (string.IsNullOrWhiteSpace(request.Query) || !string.IsNullOrWhiteSpace(request.SortColumn))
                         {
-                            config.CommandName = CommandNameType.list.ToString();
-                            config.Input = query;
-                            config.AllowUnofficialBuild = true;
-                            config.AllVersions = options.IncludeAllVersions;
-                            config.Prerelease = options.IncludePrerelease;
-                            config.ListCommand.Page = options.CurrentPage;
-                            config.ListCommand.PageSize = options.PageSize;
-                            if (string.IsNullOrWhiteSpace(query) || !string.IsNullOrWhiteSpace(options.SortColumn))
-                            {
-                                config.ListCommand.OrderByPopularity = string.IsNullOrWhiteSpace(options.SortColumn)
-                                                                       || options.SortColumn == "DownloadCount";
-                            }
-                            config.ListCommand.Exact = options.MatchQuery;
-                            if (!string.IsNullOrWhiteSpace(options.Source))
-                            {
-                                config.Sources = options.Source;
-                            }
+                            config.ListCommand.OrderByPopularity = string.IsNullOrWhiteSpace(request.SortColumn)
+                                                                   || request.SortColumn == "DownloadCount";
+                        }
+
+                        config.ListCommand.Exact = request.MatchQuery;
+                        if (!string.IsNullOrWhiteSpace(request.Source))
+                        {
+                            config.Sources = request.Source;
+                        }
 #if !DEBUG
                         config.Verbose = false;
 #endif // DEBUG
-                        });
+                    });
 
-                var packages = (await choco.ListAsync<PackageResult>()).Select(pckge => GetMappedPackage(pckge));
-
-                return new PackageSearchResults
-                           {
-                               Packages = packages,
-                               TotalCount = await Task.Run(() => choco.ListCount())
-                           };
+                var packages = (await choco.ListAsync<PackageResult>(context.CancellationToken)).Select(pckge => GetMappedPackage(pckge));
+                var reply = new PackageSearchReply
+                {
+                    TotalCount = await Task.Run(() => choco.ListCount(), context.CancellationToken)
+                };
+                reply.Packages.Add(packages);
+                return reply;
             }
         }
 
-        public async Task<Package> GetByVersionAndIdAsync(string id, string version, bool isPrerelease)
+        public override async Task<Package> GetByVersionAndId(GetPackageArgs request, ServerCallContext context)
         {
             using (await Lock.ReaderLockAsync())
             {
                 var choco = Lets.GetChocolatey().SetCustomLogging(_streamingLogger);
-                choco.Set(
-                    config =>
-                        {
-                            config.CommandName = CommandNameType.list.ToString();
-                            config.Input = id;
-                            config.Version = version;
-#if !DEBUG
-                config.Verbose = false;
-#endif // DEBUG
-                        });
-
                 var chocoConfig = choco.GetConfiguration();
                 var nugetLogger = new ChocolateyNugetLogger();
                 var packageManager = NugetCommon.GetPackageManager(
@@ -211,185 +159,272 @@ namespace ChocolateyGui.Subprocess
                     await Task.Run(
                         () =>
                             packageManager.SourceRepository.FindPackage(
-                                id,
-                                SemanticVersion.Parse(version),
-                                allowPrereleaseVersions: isPrerelease,
+                                request.Id,
+                                SemanticVersion.Parse(request.Version),
+                                allowPrereleaseVersions: request.IsPrerelease,
                                 allowUnlisted: true));
+
                 if (rawPackage == null)
                 {
-                    throw new WampException(new Dictionary<string, object>(), "com.chocolatey.no_package");
+                    context.Status = new Status(StatusCode.NotFound, $"There was no package with the id {request.Id} and version {request.Version}.");
+                    return null;
                 }
 
                 return GetMappedPackage(new PackageResult(rawPackage, null, chocoConfig.Sources));
             }
         }
 
-        public async Task<PackageOperationResult> UninstallPackage(string id, string version, bool force = false)
+        public override async Task<PackageOperationResult> InstallPackage(InstallPackageArgs request, ServerCallContext context)
         {
-            using (await Lock.WriterLockAsync())
+            try
             {
-                var choco = Lets.GetChocolatey().SetCustomLogging(_streamingLogger);
-                choco.Set(
-                    config =>
-                        {
-                            config.CommandName = CommandNameType.uninstall.ToString();
-                            config.PackageNames = id;
-                            config.Features.UsePackageExitCodes = false;
-
-                            if (version != null)
+                using (await Lock.WriterLockAsync())
+                {
+                    var choco = Lets.GetChocolatey().SetCustomLogging(_streamingLogger);
+                    choco.Set(
+                        config =>
                             {
-                                config.Version = version.ToString();
+                                config.CommandName = CommandNameType.install.ToString();
+                                config.PackageNames = request.Id;
+                                config.Features.UsePackageExitCodes = false;
+
+                                if (request.Version != null)
+                                {
+                                    config.Version = request.Version.ToString();
+                                }
+
+                                if (request.Source != null)
+                                {
+                                    config.Sources = request.Source;
+                                }
+
+                                if (request.Force)
+                                {
+                                    config.Force = true;
+                                }
+                            });
+
+                    var errors = new List<string>();
+                    Action<StreamingLogMessage> grabErrors = m =>
+                        {
+                            switch (m.LogLevel)
+                            {
+                                case StreamingLogLevel.Warn:
+                                case StreamingLogLevel.Error:
+                                case StreamingLogLevel.Fatal:
+                                    errors.Add(m.Message);
+                                    break;
+                                case StreamingLogLevel.Debug:
+                                case StreamingLogLevel.Verbose:
+                                case StreamingLogLevel.Info:
+                                    break;
+                                default:
+                                    throw new ArgumentOutOfRangeException();
                             }
-                        });
+                        };
+
+                    using (_streamingLogger.Intercept(grabErrors))
+                    {
+                        await choco.RunAsync(context.CancellationToken);
+
+                        if (Environment.ExitCode != 0)
+                        {
+                            Environment.ExitCode = 0;
+                            var packageResult = new PackageOperationResult { Successful = false };
+                            packageResult.Messages.Add(errors);
+                            return packageResult;
+                        }
+
+                        return new PackageOperationResult { Successful = true };
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(ex, "Error while installing package.");
+                throw;
+            }
+        }
+
+        public override async Task<PackageOperationResult> UninstallPackage(UninstallPackageArgs request, ServerCallContext context)
+        {
+            using (await Lock.WriterLockAsync())
+            {
+                var choco = Lets.GetChocolatey().SetCustomLogging(_streamingLogger);
+                choco.Set(
+                    config =>
+                    {
+                        config.CommandName = CommandNameType.uninstall.ToString();
+                        config.PackageNames = request.Id;
+                        config.Features.UsePackageExitCodes = false;
+
+                        if (request.Version != null)
+                        {
+                            config.Version = request.Version;
+                        }
+                    });
 
                 var errors = new List<string>();
                 Action<StreamingLogMessage> grabErrors = m =>
+                {
+                    switch (m.LogLevel)
                     {
-                        switch (m.LogLevel)
-                        {
-                            case StreamingLogLevel.Warn:
-                            case StreamingLogLevel.Error:
-                            case StreamingLogLevel.Fatal:
-                                errors.Add(m.Message);
-                                break;
-                        }
-                    };
+                        case StreamingLogLevel.Warn:
+                        case StreamingLogLevel.Error:
+                        case StreamingLogLevel.Fatal:
+                            errors.Add(m.Message);
+                            break;
+                    }
+                };
 
                 using (_streamingLogger.Intercept(grabErrors))
                 {
                     try
                     {
-                        await choco.RunAsync();
+                        await choco.RunAsync(context.CancellationToken);
                     }
                     catch (Exception ex)
                     {
-                        return new PackageOperationResult { Successful = false, Messages = errors, Exception = ex };
+                        var packageResult = new PackageOperationResult { Successful = false, ExceptionMessage = ex.Message };
+                        packageResult.Messages.Add(errors);
+                        return packageResult;
                     }
 
                     if (Environment.ExitCode != 0)
                     {
                         Environment.ExitCode = 0;
-                        return new PackageOperationResult { Successful = false, Messages = errors };
+                        var packageResult = new PackageOperationResult { Successful = false };
+                        packageResult.Messages.Add(errors);
+                        return packageResult;
                     }
-                    return PackageOperationResult.SuccessfulCached;
+
+                    return new PackageOperationResult { Successful = true };
                 }
             }
         }
 
-        public async Task<PackageOperationResult> UpdatePackage(string id, Uri source = null)
+        public override async Task<PackageOperationResult> UpdatePackage(UpdatePackageArgs request, ServerCallContext context)
         {
             using (await Lock.WriterLockAsync())
             {
                 var choco = Lets.GetChocolatey().SetCustomLogging(_streamingLogger);
                 choco.Set(
                     config =>
-                        {
-                            config.CommandName = CommandNameType.upgrade.ToString();
-                            config.PackageNames = id;
-                            config.Features.UsePackageExitCodes = false;
-                        });
-
+                    {
+                        config.CommandName = CommandNameType.upgrade.ToString();
+                        config.PackageNames = request.Id;
+                        config.Features.UsePackageExitCodes = false;
+                    });
 
                 var errors = new List<string>();
                 Action<StreamingLogMessage> grabErrors = m =>
+                {
+                    switch (m.LogLevel)
                     {
-                        switch (m.LogLevel)
-                        {
-                            case StreamingLogLevel.Warn:
-                            case StreamingLogLevel.Error:
-                            case StreamingLogLevel.Fatal:
-                                errors.Add(m.Message);
-                                break;
-                        }
-                    };
+                        case StreamingLogLevel.Warn:
+                        case StreamingLogLevel.Error:
+                        case StreamingLogLevel.Fatal:
+                            errors.Add(m.Message);
+                            break;
+                    }
+                };
 
                 using (_streamingLogger.Intercept(grabErrors))
                 {
                     try
                     {
-                        await choco.RunAsync();
+                        await choco.RunAsync(context.CancellationToken);
                     }
                     catch (Exception ex)
                     {
-                        return new PackageOperationResult { Successful = false, Messages = errors, Exception = ex };
+                        var packageResult = new PackageOperationResult { Successful = false, ExceptionMessage = ex.Message };
+                        packageResult.Messages.Add(errors);
+                        return packageResult;
                     }
 
                     if (Environment.ExitCode != 0)
                     {
                         Environment.ExitCode = 0;
-                        return new PackageOperationResult { Successful = false, Messages = errors };
+                        var packageResult = new PackageOperationResult { Successful = false };
+                        packageResult.Messages.Add(errors);
+                        return packageResult;
                     }
-                    return PackageOperationResult.SuccessfulCached;
+
+                    return new PackageOperationResult { Successful = true };
                 }
             }
         }
 
-        public async Task<PackageOperationResult> PinPackage(string id, string version)
+        public override async Task<PackageOperationResult> PinPackage(PinPackageArgs request, ServerCallContext context)
         {
             using (await Lock.WriterLockAsync())
             {
                 var choco = Lets.GetChocolatey().SetCustomLogging(_streamingLogger);
                 choco.Set(
                     config =>
-                        {
-                            config.CommandName = "pin";
-                            config.PinCommand.Command = PinCommandType.add;
-                            config.PinCommand.Name = id;
-                            config.Version = version;
-                        });
+                    {
+                        config.CommandName = "pin";
+                        config.PinCommand.Command = PinCommandType.add;
+                        config.PinCommand.Name = request.Id;
+                        config.Version = request.Version;
+                    });
 
                 try
                 {
-                    await choco.RunAsync();
+                    await choco.RunAsync(context.CancellationToken);
                 }
                 catch (Exception ex)
                 {
-                    return new PackageOperationResult { Successful = false, Exception = ex };
+                    var packageResult = new PackageOperationResult { Successful = false, ExceptionMessage = ex.Message };
+                    return packageResult;
                 }
 
-                return PackageOperationResult.SuccessfulCached;
+                return new PackageOperationResult { Successful = true };
             }
         }
 
-        public async Task<PackageOperationResult> UnpinPackage(string id, string version)
+        public override async Task<PackageOperationResult> UnpinPackage(PinPackageArgs request, ServerCallContext context)
         {
             using (await Lock.WriterLockAsync())
             {
                 var choco = Lets.GetChocolatey().SetCustomLogging(_streamingLogger);
                 choco.Set(
                     config =>
-                        {
-                            config.CommandName = "pin";
-                            config.PinCommand.Command = PinCommandType.remove;
-                            config.PinCommand.Name = id;
-                            config.Version = version;
-                        });
+                    {
+                        config.CommandName = "pin";
+                        config.PinCommand.Command = PinCommandType.remove;
+                        config.PinCommand.Name = request.Id;
+                        config.Version = request.Version;
+                    });
+
                 try
                 {
-                    await choco.RunAsync();
+                    await choco.RunAsync(context.CancellationToken);
                 }
                 catch (Exception ex)
                 {
-                    return new PackageOperationResult { Successful = false, Exception = ex };
+                    var packageResult = new PackageOperationResult { Successful = false, ExceptionMessage = ex.Message };
+                    return packageResult;
                 }
 
-                return PackageOperationResult.SuccessfulCached;
+                return new PackageOperationResult { Successful = true };
             }
         }
 
-        public async Task<IReadOnlyList<ChocolateyFeature>> GetFeatures()
+        public override async Task GetFeatures(Empty request, IServerStreamWriter<ChocolateyFeature> responseStream, ServerCallContext context)
         {
             using (await Lock.ReaderLockAsync())
             {
                 var xmlService = Hacks.GetInstance<IXmlService>();
                 var config =
                     await Task.Run(
-                        () => xmlService.deserialize<ConfigFileSettings>(ApplicationParameters.GlobalConfigFileLocation));
-                return (config.Features.Select(Mapper.Map<ChocolateyFeature>).ToList());
+                        () => xmlService.deserialize<ConfigFileSettings>(ApplicationParameters.GlobalConfigFileLocation), context.CancellationToken);
+
+                await responseStream.WriteAllAsync(config.Features.Select(Mapper.Map<ChocolateyFeature>));
             }
         }
 
-        public async Task SetFeature(ChocolateyFeature feature)
+        public override async Task<Empty> SetFeature(ChocolateyFeature request, ServerCallContext context)
         {
             using (await Lock.WriterLockAsync())
             {
@@ -397,56 +432,60 @@ namespace ChocolateyGui.Subprocess
                     config =>
                     {
                         config.CommandName = "feature";
-                        config.FeatureCommand.Command = feature.Enabled ? FeatureCommandType.enable : FeatureCommandType.disable;
-                        config.FeatureCommand.Name = feature.Name;
+                        config.FeatureCommand.Command = request.Enabled ? FeatureCommandType.enable : FeatureCommandType.disable;
+                        config.FeatureCommand.Name = request.Name;
                     });
 
-                await choco.RunAsync();
+                await choco.RunAsync(context.CancellationToken);
+                return Empty.Instance;
             }
         }
 
-        public async Task<IReadOnlyList<ChocolateySetting>> GetSettings()
+        public override async Task GetSettings(Empty request, IServerStreamWriter<ChocolateySetting> responseStream, ServerCallContext context)
         {
             using (await Lock.ReaderLockAsync())
             {
                 var xmlService = Hacks.GetInstance<IXmlService>();
                 var config =
                     await Task.Run(
-                        () => xmlService.deserialize<ConfigFileSettings>(ApplicationParameters.GlobalConfigFileLocation));
-                return (config.ConfigSettings.Select(Mapper.Map<ChocolateySetting>).ToList());
+                        () => xmlService.deserialize<ConfigFileSettings>(ApplicationParameters.GlobalConfigFileLocation), context.CancellationToken);
+
+                await responseStream.WriteAllAsync(config.ConfigSettings.Select(Mapper.Map<ChocolateySetting>));
             }
         }
 
-        public async Task SetSetting(ChocolateySetting setting)
+        public override async Task<Empty> SetSetting(ChocolateySetting request, ServerCallContext context)
         {
             using (await Lock.WriterLockAsync())
             {
                 var choco = Lets.GetChocolatey().SetCustomLogging(_streamingLogger).Set(
                     config =>
-                        {
-                            config.CommandName = "config";
-                            config.ConfigCommand.Command = ConfigCommandType.set;
-                            config.ConfigCommand.Name = setting.Key;
-                            config.ConfigCommand.ConfigValue = setting.Value;
-                        });
+                    {
+                        config.CommandName = "config";
+                        config.ConfigCommand.Command = ConfigCommandType.set;
+                        config.ConfigCommand.Name = request.Key;
+                        config.ConfigCommand.ConfigValue = request.Value;
+                    });
 
-                await choco.RunAsync();
+                await choco.RunAsync(context.CancellationToken);
+                return Empty.Instance;
             }
         }
 
-        public async Task<IReadOnlyList<ChocolateySource>> GetSources()
+        public override async Task GetSources(Empty request, IServerStreamWriter<ChocolateySource> responseStream, ServerCallContext context)
         {
             using (await Lock.ReaderLockAsync())
             {
                 var xmlService = Hacks.GetInstance<IXmlService>();
                 var config =
                     await Task.Run(
-                        () => xmlService.deserialize<ConfigFileSettings>(ApplicationParameters.GlobalConfigFileLocation));
-                return (config.Sources.Select(Mapper.Map<ChocolateySource>).ToList());
+                        () => xmlService.deserialize<ConfigFileSettings>(ApplicationParameters.GlobalConfigFileLocation), context.CancellationToken);
+                
+                await responseStream.WriteAllAsync(config.Sources.Select(Mapper.Map<ChocolateySource>));
             }
         }
 
-        public async Task AddSource(ChocolateySource source)
+        public override async Task<Empty> AddSource(ChocolateySource request, ServerCallContext context)
         {
             using (await Lock.WriterLockAsync())
             {
@@ -455,27 +494,27 @@ namespace ChocolateyGui.Subprocess
                     {
                         config.CommandName = "source";
                         config.SourceCommand.Command = SourceCommandType.add;
-                        config.SourceCommand.Name = source.Id;
-                        config.Sources = source.Value;
-                        config.SourceCommand.Username = source.UserName;
-                        config.SourceCommand.Password = source.Password;
-                        config.SourceCommand.Certificate = source.Certificate;
-                        config.SourceCommand.CertificatePassword = source.CertificatePassword;
-                        config.SourceCommand.Priority = source.Priority;
+                        config.SourceCommand.Name = request.Id;
+                        config.Sources = request.Value;
+                        config.SourceCommand.Username = request.UserName;
+                        config.SourceCommand.Password = request.Password;
+                        config.SourceCommand.Certificate = request.Certificate;
+                        config.SourceCommand.CertificatePassword = request.CertificatePassword;
+                        config.SourceCommand.Priority = request.Priority;
                     });
 
-                await choco.RunAsync();
+                await choco.RunAsync(context.CancellationToken);
 
-                if (source.Disabled)
+                if (request.Disabled)
                 {
                     choco.Set(
                         config =>
-                            {
-                                config.CommandName = "source";
-                                config.SourceCommand.Command = SourceCommandType.disable;
-                                config.SourceCommand.Name = source.Id;
-                            });
-                    await choco.RunAsync();
+                        {
+                            config.CommandName = "source";
+                            config.SourceCommand.Command = SourceCommandType.disable;
+                            config.SourceCommand.Name = request.Id;
+                        });
+                    await choco.RunAsync(context.CancellationToken);
                 }
                 else
                 {
@@ -484,24 +523,27 @@ namespace ChocolateyGui.Subprocess
                        {
                            config.CommandName = "source";
                            config.SourceCommand.Command = SourceCommandType.enable;
-                           config.SourceCommand.Name = source.Id;
+                           config.SourceCommand.Name = request.Id;
                        });
-                    await choco.RunAsync();
+                    await choco.RunAsync(context.CancellationToken);
                 }
             }
+            
+            return Empty.Instance;
         }
 
-        public async Task UpdateSource(string id, ChocolateySource source)
+        public override async Task<Empty> UpdateSource(UpdateSourceArgs request, ServerCallContext context)
         {
-            if (id != source.Id)
+            if (request.Id != request.Source.Id)
             {
-                await RemoveSource(id);
+                await RemoveSource(new RemoveSourceArgs {Id = request.Id}, context);
             }
 
-            await AddSource(source);
+            await AddSource(request.Source, context);
+            return Empty.Instance;
         }
 
-        public async Task<bool> RemoveSource(string id)
+        public override async Task<PackageOperationResult> RemoveSource(RemoveSourceArgs request, ServerCallContext context)
         {
             using (await Lock.WriterLockAsync())
             {
@@ -509,11 +551,12 @@ namespace ChocolateyGui.Subprocess
                 var chocoCOnfig =
                     await Task.Run(
                         () => xmlService.deserialize<ConfigFileSettings>(ApplicationParameters.GlobalConfigFileLocation));
-                var sources = (chocoCOnfig.Sources.Select(Mapper.Map<ChocolateySource>).ToList());
 
-                if (sources.All(source => source.Id != id))
+                var sources = chocoCOnfig.Sources.Select(Mapper.Map<ChocolateySource>).ToList();
+
+                if (sources.All(source => source.Id != request.Id))
                 {
-                    return false;
+                    return new PackageOperationResult();
                 }
 
                 var choco = Lets.GetChocolatey().SetCustomLogging(_streamingLogger).Set(
@@ -521,17 +564,19 @@ namespace ChocolateyGui.Subprocess
                         {
                             config.CommandName = "source";
                             config.SourceCommand.Command = SourceCommandType.remove;
-                            config.SourceCommand.Name = id;
+                            config.SourceCommand.Name = request.Id;
                         });
 
-                await choco.RunAsync();
-                return true;
+                await choco.RunAsync(context.CancellationToken);
+                return new PackageOperationResult {Successful = true};
             }
         }
 
-        public void Exit()
+        public override Task<Empty> Exit(Empty request, ServerCallContext context)
         {
+            context.Status = new Status(StatusCode.Unavailable, "Exiting");
             Program.CanceledEvent.Set();
+            return Task.FromResult(Empty.Instance);
         }
 
         private static Package GetMappedPackage(PackageResult package, bool forceInstalled = false)
@@ -543,6 +588,7 @@ namespace ChocolateyGui.Subprocess
                 mappedPackage.IsPinned = packageInfo.IsPinned;
                 mappedPackage.IsInstalled = !string.IsNullOrWhiteSpace(package.InstallLocation) || forceInstalled;
             }
+
             return mappedPackage;
         }
     }

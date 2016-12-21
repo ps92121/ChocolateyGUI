@@ -7,7 +7,7 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using ChocolateyGui.Subprocess.Models;
+using ChocolateyGui.Rpc;
 using ChocolateyGui.ViewModels.Items;
 using NuGet;
 using PackageSearchResults = ChocolateyGui.Models.PackageSearchResults;
@@ -16,7 +16,7 @@ namespace ChocolateyGui.Services
 {
     public interface IChocolateyPackageService
     {
-        Task<PackageSearchResults> Search(string query, PackageSearchOptions options);
+        Task<PackageSearchResults> Search(PackageSearchArgs options);
 
         Task<IPackageViewModel> GetByVersionAndIdAsync(string id, SemanticVersion version, bool isPrerelease);
 
@@ -24,11 +24,11 @@ namespace ChocolateyGui.Services
 
         Task<IReadOnlyList<Tuple<string, SemanticVersion>>> GetOutdatedPackages(bool includePrerelease = false);
 
-        Task InstallPackage(string id, SemanticVersion version = null, Uri source = null, bool force = false);
+        Task InstallPackage(string id, SemanticVersion version = null, string source = null, bool force = false);
 
         Task UninstallPackage(string id, SemanticVersion version, bool force = false);
 
-        Task UpdatePackage(string id, Uri source = null);
+        Task UpdatePackage(string id, string source = null);
 
         Task PinPackage(string id, SemanticVersion version);
 

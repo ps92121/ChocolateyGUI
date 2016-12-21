@@ -1,0 +1,126 @@
+syntax = "proto3";
+
+package chocolateygui.rpc;
+option csharp_namespace = "ChocolateyGui.Rpc";
+
+import "models.proto";
+
+message Empty {}
+
+message IsElevatedResult {
+    bool IsElevated = 1;
+}
+
+message OutdatedArgs {
+	bool IncludePrerelease = 1;
+}
+
+message OutdatedResult {
+    string Id = 1;
+    string Version = 2;
+}
+
+message PackagesList {
+	repeated Package Packages = 1;
+}
+
+message PackageSearchArgs {
+	string Query = 1;
+    int32 CurrentPage = 2;
+    int32 PageSize = 3;
+    string Source = 4;
+    bool IncludeAllVersions = 5;
+    bool IncludePrerelease = 6;
+    bool MatchQuery = 7;
+    string SortColumn = 8;
+    repeated string TagsQuery = 9;
+}
+
+message PackageSearchReply {
+    repeated Package Packages = 1;
+    int32 TotalCount = 2;
+}
+
+message GetPackageArgs {
+	string Id = 1;
+	string Version = 2;
+	bool IsPrerelease = 3;
+}
+
+message PackageOperationResult {
+	bool Successful = 1;
+	repeated string Messages = 2;
+	string ExceptionMessage = 3;
+}
+
+message InstallPackageArgs {
+	string Id = 1;
+	string Version = 2;
+	string Source = 3;
+	bool Force = 4;
+}
+
+message UninstallPackageArgs {
+	string Id = 1;
+	string Version = 2;
+	bool Force = 3;
+}
+
+message UpdatePackageArgs {
+	string Id = 1;
+	string Source = 2;
+}
+
+message PinPackageArgs {
+	string Id = 1;
+	string Version = 2;
+}
+
+message UpdateSourceArgs {
+	string Id = 1;
+	ChocolateySource Source = 2;
+}
+
+message RemoveSourceArgs {
+	string Id = 1;
+}
+
+service PackageService {
+    rpc IsElevated(Empty) returns (IsElevatedResult) {}
+
+    rpc GetInstalledPackages(Empty) returns (PackagesList) {}
+
+    rpc GetOutdatedPackages(OutdatedArgs) returns (stream OutdatedResult) {}
+
+    rpc Search(PackageSearchArgs) returns (PackageSearchReply) {}
+
+    rpc GetByVersionAndId(GetPackageArgs) returns (Package) {}
+
+    rpc InstallPackage(InstallPackageArgs) returns (PackageOperationResult) {}
+
+    rpc UninstallPackage(UninstallPackageArgs) returns (PackageOperationResult) {}
+
+	rpc UpdatePackage(UpdatePackageArgs) returns (PackageOperationResult) {}
+
+	rpc PinPackage(PinPackageArgs) returns (PackageOperationResult) {}
+
+	rpc UnpinPackage(PinPackageArgs) returns (PackageOperationResult) {}
+
+	rpc GetFeatures(Empty) returns (stream ChocolateyFeature) {}
+
+	rpc SetFeature(ChocolateyFeature) returns (Empty) {}
+
+	rpc GetSettings(Empty) returns (stream ChocolateySetting) {}
+
+	rpc SetSetting(ChocolateySetting) returns (Empty) {}
+
+	rpc GetSources(Empty) returns (stream ChocolateySource) {}
+
+	rpc AddSource(ChocolateySource) returns (Empty) {}
+
+	rpc UpdateSource(UpdateSourceArgs) returns (Empty) {}
+
+	rpc RemoveSource(RemoveSourceArgs) returns (PackageOperationResult) {}
+
+    rpc Exit(Empty) returns (Empty) {}
+}

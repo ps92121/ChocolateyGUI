@@ -5,6 +5,7 @@
 // --------------------------------------------------------------------------------------------------------------------
 
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
 using Autofac;
@@ -12,10 +13,13 @@ using AutoMapper;
 using Caliburn.Micro;
 using ChocolateyGui.Models;
 using ChocolateyGui.Providers;
+using ChocolateyGui.Rpc;
 using ChocolateyGui.Services;
+using ChocolateyGui.Subprocess.Mapping;
 using ChocolateyGui.ViewModels;
 using ChocolateyGui.ViewModels.Items;
 using ChocolateyGui.Views;
+using Google.Protobuf.Collections;
 using LiteDB;
 using NuGet;
 using PackageViewModel = ChocolateyGui.ViewModels.Items.PackageViewModel;
@@ -67,6 +71,8 @@ namespace ChocolateyGui.Startup
             // Register Mapper
             var mapperConfiguration = new MapperConfiguration(config =>
             {
+                config.AddDefaults();
+
                 config.CreateMap<IPackage, IPackageViewModel>();
                 config.CreateMap<IPackageViewModel, IPackageViewModel>()
                     .ForMember(vm => vm.IsInstalled, options => options.Ignore());

@@ -15,8 +15,8 @@ using System.Threading.Tasks;
 using System.Windows;
 using Caliburn.Micro;
 using ChocolateyGui.Models.Messages;
+using ChocolateyGui.Rpc;
 using ChocolateyGui.Services;
-using ChocolateyGui.Subprocess.Models;
 using ChocolateyGui.Utilities.Extensions;
 using ChocolateyGui.ViewModels.Items;
 using Serilog;
@@ -251,23 +251,33 @@ namespace ChocolateyGui.ViewModels
                 try
                 {
                     var result =
-                        await
-                            _chocolateyPackageService.Search(SearchQuery,
-                                new PackageSearchOptions(PageSize, CurrentPage - 1, sort, IncludePrerelease,
-                                    IncludeAllVersions, MatchWord, Source.Value));
+                        await _chocolateyPackageService.Search(
+                            new PackageSearchArgs
+                                {
+                                    Query = SearchQuery ?? "",
+                                    PageSize = PageSize,
+                                    CurrentPage = CurrentPage - 1,
+                                    SortColumn = sort,
+                                    IncludePrerelease = IncludePrerelease,
+                                    IncludeAllVersions = IncludeAllVersions,
+                                    MatchQuery = MatchWord,
+                                    Source = Source.Value ?? ""
+                            });
+
                     var installed = await _chocolateyPackageService.GetInstalledPackages();
 
-                    PageCount = (int)(((double) result.TotalCount / (double) PageSize) + 0.5);
+                    PageCount = (int)(((double)result.TotalCount / (double)PageSize) + 0.5);
                     Packages.Clear();
-                    result.Packages.ToList().ForEach(p =>
-                    {
-                        if (installed.Any(package => package.Id == p.Id))
-                        {
-                            p.IsInstalled = true;
-                        }
+                    result.Packages.ToList().ForEach(
+                        p =>
+                            {
+                                if (installed.Any(package => package.Id == p.Id))
+                                {
+                                    p.IsInstalled = true;
+                                }
 
-                        Packages.Add(p);
-                    });
+                                Packages.Add(p);
+                            });
 
                     if (PageCount < CurrentPage)
                     {

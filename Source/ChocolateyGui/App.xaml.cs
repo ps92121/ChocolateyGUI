@@ -17,6 +17,8 @@ namespace ChocolateyGui
     {
         internal static SplashScreen SplashScreen { get; set; }
 
+        internal static Job Job { get; set; }
+
         [STAThread]
         public static void Main(string[] args)
         {
@@ -33,6 +35,8 @@ namespace ChocolateyGui
 
             SplashScreen = new SplashScreen(img);
             SplashScreen.Show(true, true);
+            
+            Job = new Job();
 
             var application = new App();
             application.InitializeComponent();
