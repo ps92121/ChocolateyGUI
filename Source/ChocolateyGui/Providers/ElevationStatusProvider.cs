@@ -15,7 +15,7 @@ namespace ChocolateyGui.Providers
     public class ElevationStatusProvider : PropertyChangedBase
     {
         public static readonly ElevationStatusProvider Instance =
-            (ElevationStatusProvider) Application.Current.FindResource("Elevation");
+            (ElevationStatusProvider)Application.Current.FindResource("Elevation");
 
         private bool _isElevated = Hacks.IsElevated;
 
