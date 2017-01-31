@@ -12,13 +12,11 @@ using System.IO;
 using System.Linq;
 using System.ServiceModel;
 using System.Threading.Tasks;
-using System.Windows;
 using AutoMapper;
 using Caliburn.Micro;
 using ChocolateyGui.Models;
 using ChocolateyGui.Models.Messages;
 using ChocolateyGui.Properties;
-using ChocolateyGui.Providers;
 using ChocolateyGui.ViewModels.Items;
 using Microsoft.VisualStudio.Threading;
 using NuGet;
@@ -219,13 +217,27 @@ namespace ChocolateyGui.Services
         public async Task<IReadOnlyList<ChocolateyFeature>> GetFeatures()
         {
             await Initialize();
-            return await _chocolateyService.GetFeatures();
+            var list = await _chocolateyService.GetFeatures();
+            var background = list.FirstOrDefault(feature => string.Equals(feature.Name, "useBackgroundService", StringComparison.OrdinalIgnoreCase));
+            if (background == null)
+            {
+                return list.Concat(new[] { new ChocolateyFeature() { Name = "useBackgroundService", Enabled = true } }).ToList();
+            }
+            else
+            {
+                background.Enabled = true;
+                return list;
+            }
         }
 
         public async Task SetFeature(ChocolateyFeature feature)
         {
             await Initialize(true);
             await _chocolateyService.SetFeature(feature);
+            if (string.Equals(feature.Name, "useBackgroundService", StringComparison.OrdinalIgnoreCase))
+            {
+                Elevation.Instance.IsBackgroundRunning = feature.Enabled;
+            }
         }
 
         public async Task<IReadOnlyList<ChocolateySetting>> GetSettings()
@@ -380,7 +392,7 @@ namespace ChocolateyGui.Services
                 _chocolateyService = CreateClient();
 
                 // ReSharper disable once PossibleNullReferenceException
-                ((ElevationStatusProvider)Application.Current.FindResource("Elevation")).IsElevated = await _chocolateyService.IsElevated();
+                Elevation.Instance.IsElevated = await _chocolateyService.IsElevated();
             }
         }
 
