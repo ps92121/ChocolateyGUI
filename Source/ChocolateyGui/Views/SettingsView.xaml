@@ -105,37 +105,40 @@
                                CanUserAddRows="False" CanUserDeleteRows="False" IsReadOnly="True"
                                cal:Message.Attach="[Event SelectionChanged] = [Action SourceSelectionChanged(SourcesGrid.SelectedItem)]"
                                ItemsSource="{Binding Sources}" AutoGenerateColumns="False">
-            <DataGrid.Columns>
-              <DataGridTextColumn Header="{x:Static lang:Resources.SettingsView_SourcesId}" Width="*" Binding="{Binding Id}"/>
-              <DataGridTextColumn Header="{x:Static lang:Resources.SettingsView_SourcesPath}" Width="3*" Binding="{Binding Value}"/>
-              <DataGridTextColumn Header="{x:Static lang:Resources.SettingsView_SourcesUsername}" Width="*" Binding="{Binding UserName}" />
-              <DataGridTextColumn Header="{x:Static lang:Resources.SettingsView_SourcesPassword}" Width="*" Binding="{Binding Password}" />
-              <DataGridTextColumn Header="{x:Static lang:Resources.SettingsView_SourcesCertificate}" Width="*" Binding="{Binding Certificate}" />
-              <DataGridTextColumn Header="{x:Static lang:Resources.SettingsView_SourcesCertificatePass}" Width="*" Binding="{Binding CertificatePassword}" />
-              <metro:DataGridNumericUpDownColumn Header="{x:Static lang:Resources.SettingsView_SourcesPriority}" Binding="{Binding Priority}"/>
-              <DataGridCheckBoxColumn Header="{x:Static lang:Resources.SettingsView_SourcesDisabled}" Width="Auto" Binding="{Binding Disabled}"/>
-            </DataGrid.Columns>
-          </DataGrid>
-          <DockPanel Grid.Row="2" Grid.Column="0" Margin="5">
-            <Grid DockPanel.Dock="Top">
-              <TextBlock Text="Source" Margin="15 5 0 0" Style="{StaticResource SubtitleTextBlockStyle}"/>
-              <Button x:Name="New" HorizontalAlignment="Right" VerticalAlignment="Center" Width="80" Padding="5" Content="{x:Static lang:Resources.SettingsView_ButtonNew}"/>
-            </Grid>
-            <Grid>
-              <Grid.RowDefinitions>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="35"/>
-                <RowDefinition Height="35"/>
-                <RowDefinition Height="35"/>
-                <RowDefinition Height="35"/>
-                <RowDefinition Height="*"/>
-              </Grid.RowDefinitions>
-              <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="150"/>
-                <ColumnDefinition Width="2*"/>
-                <ColumnDefinition Width="150"/>
-                <ColumnDefinition Width="2*"/>
-              </Grid.ColumnDefinitions>
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="{x:Static lang:Resources.SettingsView_SourcesId}" Width="*" Binding="{Binding Id}"/>
+                            <DataGridTextColumn Header="{x:Static lang:Resources.SettingsView_SourcesPath}" Width="3*" Binding="{Binding Value}"/>
+                            <DataGridTextColumn Header="{x:Static lang:Resources.SettingsView_SourcesUsername}" Width="*" Binding="{Binding UserName}" />
+                            <DataGridTextColumn Header="{x:Static lang:Resources.SettingsView_SourcesPassword}" Width="*" Binding="{Binding Password}" />
+                            <DataGridTextColumn Header="{x:Static lang:Resources.SettingsView_SourcesCertificate}" Width="*" Binding="{Binding Certificate}" />
+                            <DataGridTextColumn Header="{x:Static lang:Resources.SettingsView_SourcesCertificatePass}" Width="*" Binding="{Binding CertificatePassword}" />
+                            <metro:DataGridNumericUpDownColumn Header="{x:Static lang:Resources.SettingsView_SourcesPriority}" Binding="{Binding Priority}"/>
+                            <DataGridCheckBoxColumn Header="{x:Static lang:Resources.SettingsView_SourcesDisabled}" Width="Auto" Binding="{Binding Disabled}"/>
+                            <DataGridCheckBoxColumn Header="{x:Static lang:Resources.SettingsView_SourcesByPassProxy}" Width="Auto" Binding="{Binding ByPassProxy}"/>
+                            <DataGridCheckBoxColumn Header="{x:Static lang:Resources.SettingsView_SourcesSelfService}" Width="Auto" Binding="{Binding SelfService}"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    <DockPanel Grid.Row="2" Grid.Column="0" Margin="5">
+                        <Grid DockPanel.Dock="Top">
+                            <TextBlock Text="Source" Margin="15 5 0 0" Style="{StaticResource SubtitleTextBlockStyle}"/>
+                            <Button x:Name="New" HorizontalAlignment="Right" VerticalAlignment="Center" Width="80" Padding="5" Content="{x:Static lang:Resources.SettingsView_ButtonNew}"/>
+                        </Grid>
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="35"/>
+                                <RowDefinition Height="35"/>
+                                <RowDefinition Height="35"/>
+                                <RowDefinition Height="35"/>
+                                <RowDefinition Height="35"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="150"/>
+                                <ColumnDefinition Width="2*"/>
+                                <ColumnDefinition Width="150"/>
+                                <ColumnDefinition Width="2*"/>
+                            </Grid.ColumnDefinitions>
 
               <Grid.Resources>
                 <Style TargetType="TextBlock" BasedOn="{StaticResource BaseAltTextBlockStyle}">
@@ -171,8 +174,11 @@
               <TextBox Grid.Row="4" Grid.Column="1"
                                  VerticalContentAlignment="Center"  Text="{Binding SelectedSource.Password}"/>
 
-              <TextBlock Grid.Row="1" Grid.Column="2" Text="{x:Static lang:Resources.SettingsView_SourcesCertificate}"/>
-              <TextBox Grid.Row="1" Grid.Column="3" VerticalContentAlignment="Center"  Text="{Binding SelectedSource.Certificate}"/>
+                            <TextBlock Grid.Row="5" Grid.Column="0" Text="{x:Static lang:Resources.SettingsView_SourcesPriority}"/>
+                            <metro:NumericUpDown Grid.Row="5" Grid.Column="1" VerticalContentAlignment="Center" Value="{Binding SelectedSource.Priority}"/>
+                            
+                            <TextBlock Grid.Row="1" Grid.Column="2" Text="{x:Static lang:Resources.SettingsView_SourcesCertificate}"/>
+                            <TextBox Grid.Row="1" Grid.Column="3" VerticalContentAlignment="Center"  Text="{Binding SelectedSource.Certificate}"/>
 
               <TextBlock Grid.Row="2" Grid.Column="2" Text="{x:Static lang:Resources.SettingsView_SourcesCertificatePass}"/>
               <TextBox Grid.Row="2" Grid.Column="3"
@@ -182,11 +188,16 @@
               <CheckBox Grid.Row="3" Grid.Column="3"
                                  VerticalAlignment="Center" IsChecked="{Binding SelectedSource.Disabled}"/>
 
-              <TextBlock Grid.Row="4" Grid.Column="2" Text="{x:Static lang:Resources.SettingsView_SourcesPriority}"/>
-              <metro:NumericUpDown Grid.Row="4" Grid.Column="3" VerticalContentAlignment="Center" Value="{Binding SelectedSource.Priority}"/>
+                            <TextBlock Grid.Row="4" Grid.Column="2" Text="{x:Static lang:Resources.SettingsView_SourcesIsByPassProxy}"/>
+                            <CheckBox Grid.Row="4" Grid.Column="3"
+                                 VerticalAlignment="Center" IsChecked="{Binding SelectedSource.ByPassProxy}"/>
 
-              <StackPanel Grid.Row="5" Grid.Column="3"  Orientation="Horizontal" Margin="15 0 0 0">
-                <Button x:Name="Save"
+                            <TextBlock Grid.Row="5" Grid.Column="2" Text="{x:Static lang:Resources.SettingsView_SourcesIsSelfService}"/>
+                            <CheckBox Grid.Row="5" Grid.Column="3"
+                                 VerticalAlignment="Center" IsChecked="{Binding SelectedSource.SelfService}"/>
+
+                            <StackPanel Grid.Row="6" Grid.Column="3"  Orientation="Horizontal" Margin="15 0 0 0">
+                                <Button x:Name="Save"
                                 Padding="5 5" Margin="5 0" Width="80"
                                 HorizontalAlignment="Left" VerticalAlignment="Center" Content="{x:Static lang:Resources.SettingsView_ButtonSave}"/>
 
