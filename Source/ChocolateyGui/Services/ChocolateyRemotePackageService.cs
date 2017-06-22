@@ -38,7 +38,7 @@ namespace ChocolateyGui.Services
 
         private Process _chocolateyProcess;
         private IIpcChocolateyService _chocolateyService;
-        private bool? _requiresElevation;
+        private bool? _canBeElevated;
 
         public ChocolateyRemotePackageService(
             IProgressService progressService,
@@ -59,12 +59,12 @@ namespace ChocolateyGui.Services
             await Initialize();
             var results = await _chocolateyService.Search(query, options);
             return new PackageSearchResults
-                       {
-                           Packages =
+            {
+                Packages =
                                results.Packages.Select(
                                    pcgke => _mapper.Map(pcgke, _packageFactory())),
-                           TotalCount = results.TotalCount
-                       };
+                TotalCount = results.TotalCount
+            };
         }
 
         public async Task<IPackageViewModel> GetByVersionAndIdAsync(string id, SemanticVersion version, bool isPrerelease)
@@ -276,9 +276,9 @@ namespace ChocolateyGui.Services
             return await _chocolateyService.RemoveSource(id);
         }
 
-        public ValueTask<bool> RequiresElevation()
+        public ValueTask<bool> CanBeElevated()
         {
-            return _requiresElevation.HasValue ? new ValueTask<bool>(_requiresElevation.Value) : new ValueTask<bool>(RequiresElevationImpl());
+            return _canBeElevated.HasValue ? new ValueTask<bool>(_canBeElevated.Value) : new ValueTask<bool>(CanBeElevatedImpl());
         }
 
         public void Dispose()
@@ -292,11 +292,15 @@ namespace ChocolateyGui.Services
             }
         }
 
-        private async Task<bool> RequiresElevationImpl()
+        private async Task<bool> CanBeElevatedImpl()
         {
-            await Initialize();
-            _requiresElevation = !await _chocolateyService.IsElevated();
-            return _requiresElevation.Value;
+            if (_chocolateyProcess == null || _chocolateyProcess.HasExited)
+            {
+                await Initialize();
+            }
+
+            _canBeElevated = !Elevation.Instance.IsBackgroundRunning && !await _chocolateyService.IsElevated();
+            return _canBeElevated.Value;
         }
 
         private async Task Initialize(bool requireAdmin = false)
@@ -319,7 +323,7 @@ namespace ChocolateyGui.Services
             // Check if we're not already initialized or running, as well as our permissions level.
             if (_chocolateyProcess != null && !_chocolateyProcess.HasExited)
             {
-                if (!requireAdmin || await _chocolateyService.IsElevated())
+                if (!requireAdmin || !await CanBeElevated())
                 {
                     return;
                 }
@@ -330,7 +334,7 @@ namespace ChocolateyGui.Services
                 // Double check our initialization and permissions status.
                 if (_chocolateyProcess != null && !_chocolateyProcess.HasExited)
                 {
-                    if (!requireAdmin || await _chocolateyService.IsElevated())
+                    if (!requireAdmin || !await CanBeElevated())
                     {
                         return;
                     }
@@ -393,6 +397,7 @@ namespace ChocolateyGui.Services
 
                 // ReSharper disable once PossibleNullReferenceException
                 Elevation.Instance.IsElevated = await _chocolateyService.IsElevated();
+                _canBeElevated = !Elevation.Instance.IsBackgroundRunning && !Elevation.Instance.IsElevated;
             }
         }
 
