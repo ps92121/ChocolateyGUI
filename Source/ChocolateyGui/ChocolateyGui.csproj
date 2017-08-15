@@ -336,6 +336,14 @@
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
     </Page>
+    <Page Include="Views\PsSourcesView.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Views\PsShellView.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
     <Page Include="Views\SourcesView.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
@@ -351,7 +359,9 @@
     <Compile Include="Base\ObservableBase.cs" />
     <Compile Include="ViewModels\Items\IPackageViewModel.cs" />
     <Compile Include="ViewModels\Items\PackageViewModel.cs" />
+    <Compile Include="ViewModels\Items\PsSourceViewModel.cs" />
     <Compile Include="ViewModels\SettingsViewModel.cs" />
+    <Compile Include="ViewModels\PsShellViewModel.cs" />
     <Compile Include="ViewModels\SourcesViewModel.cs" />
     <Compile Include="ViewModels\PackageViewModel.cs" />
     <Compile Include="ViewModels\RemoteSourceViewModel.cs" />
@@ -369,6 +379,12 @@
     </Compile>
     <Compile Include="Views\SettingsView.xaml.cs">
       <DependentUpon>SettingsView.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Views\PsSourcesView.xaml.cs">
+      <DependentUpon>PsSourcesView.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Views\PsShellView.xaml.cs">
+      <DependentUpon>PsShellView.xaml</DependentUpon>
     </Compile>
     <Compile Include="Views\SourcesView.xaml.cs">
       <DependentUpon>SourcesView.xaml</DependentUpon>
@@ -391,10 +407,12 @@
     <EmbeddedResource Include="Properties\Resources.resx">
       <Generator>PublicResXFileCodeGenerator</Generator>
       <LastGenOutput>Resources.Designer.cs</LastGenOutput>
+      <SubType>Designer</SubType>
     </EmbeddedResource>
     <EmbeddedResource Include="Properties\Resources.de.resx">
       <Generator>PublicResXFileCodeGenerator</Generator>
       <LastGenOutput>Resources.de.Designer.cs</LastGenOutput>
+      <SubType>Designer</SubType>
     </EmbeddedResource>
     <EmbeddedResource Include="Properties\Resources.sv.resx">
       <Generator>PublicResXFileCodeGenerator</Generator>

@@ -23,7 +23,7 @@ namespace ChocolateyGui.Views
     /// <summary>
     ///     Interaction logic for ShellView.xaml
     /// </summary>
-    public partial class ShellView
+    public partial class PsShellView
     {
         private readonly IChocolateyConfigurationProvider _chocolateyConfigurationProvider;
 
@@ -33,7 +33,7 @@ namespace ChocolateyGui.Views
 
         private bool _closeInitiated = false;
 
-        public ShellView(
+        public PsShellView(
             IProgressService progressService,
             IChocolateyConfigurationProvider chocolateyConfigurationProvider,
             IConfigService configService)
@@ -43,7 +43,7 @@ namespace ChocolateyGui.Views
             var service = progressService as ProgressService;
             if (service != null)
             {
-                //service.ShellView = this;
+                service.ShellView = this;
             }
 
             _progressService = progressService;

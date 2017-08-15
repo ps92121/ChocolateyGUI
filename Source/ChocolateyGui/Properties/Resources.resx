@@ -199,7 +199,7 @@ Error: {1}{2}</value>
     <value>Update</value>
   </data>
   <data name="LocalSourceViewModel_Chocolatey" xml:space="preserve">
-    <value>Chocolatey</value>
+    <value>PSAU</value>
   </data>
   <data name="LocalSourceViewModel_ConfigFiles" xml:space="preserve">
     <value>Config Files (.config)|*.config</value>
@@ -208,7 +208,7 @@ Error: {1}{2}</value>
     <value>Packages</value>
   </data>
   <data name="LocalSourceViewModel_UpdateAvailableForChocolatey" xml:space="preserve">
-    <value>There's an update available for Chocolatey.</value>
+    <value>There's an update available for PSAU.</value>
   </data>
   <data name="LocalSourceView_ButtonExport" xml:space="preserve">
     <value>Export</value>
@@ -446,7 +446,7 @@ NOTE: Probably only necessary to change in RTL languages.</comment>
     <value>Search:</value>
   </data>
   <data name="Resources_ThisPC" xml:space="preserve">
-    <value>This PC</value>
+    <value>This Machine</value>
   </data>
   <data name="SettingsViewModel_DisplayName" xml:space="preserve">
     <value>ChocolateyGUI - Settings</value>
@@ -490,7 +490,7 @@ NOTE: Probably only necessary to change in RTL languages.</comment>
     <value>Save</value>
   </data>
   <data name="SettingsView_ChocoGui" xml:space="preserve">
-    <value>Chocolatey Gui</value>
+    <value>PSAU</value>
   </data>
   <data name="SettingsView_Credits" xml:space="preserve">
     <value>Credits</value>
@@ -556,7 +556,7 @@ NOTE: Probably only necessary to change in RTL languages.</comment>
     <value>Username</value>
   </data>
   <data name="SettingsView_SubheaderChoco" xml:space="preserve">
-    <value>Chocolatey</value>
+    <value>PSAU</value>
   </data>
   <data name="SettingsView_ToggleElevateByDefault" xml:space="preserve">
     <value>Elevate By Default</value>
@@ -571,7 +571,7 @@ NOTE: Probably only necessary to change in RTL languages.</comment>
     <value>settings</value>
   </data>
   <data name="SourcesView_Choco" xml:space="preserve">
-    <value>chocolatey</value>
+    <value>PSAU</value>
   </data>
   <data name="VersionNumberProvider_VersionFormat" xml:space="preserve">
     <value>Version: {0}</value>

@@ -382,7 +382,7 @@ namespace ChocolateyGui.Properties {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Chocolatey.
+        ///   Looks up a localized string similar to PSAU.
         /// </summary>
         public static string LocalSourceViewModel_Chocolatey {
             get {
@@ -409,7 +409,7 @@ namespace ChocolateyGui.Properties {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to There&apos;s an update available for Chocolatey..
+        ///   Looks up a localized string similar to There&apos;s an update available for PSAU..
         /// </summary>
         public static string LocalSourceViewModel_UpdateAvailableForChocolatey {
             get {
@@ -965,7 +965,7 @@ namespace ChocolateyGui.Properties {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to This PC.
+        ///   Looks up a localized string similar to This Machine.
         /// </summary>
         public static string Resources_ThisPC {
             get {
@@ -1019,7 +1019,7 @@ namespace ChocolateyGui.Properties {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Chocolatey Gui.
+        ///   Looks up a localized string similar to PSAU.
         /// </summary>
         public static string SettingsView_ChocoGui {
             get {
@@ -1253,7 +1253,7 @@ namespace ChocolateyGui.Properties {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Chocolatey.
+        ///   Looks up a localized string similar to PSAU.
         /// </summary>
         public static string SettingsView_SubheaderChoco {
             get {
@@ -1371,7 +1371,7 @@ namespace ChocolateyGui.Properties {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to chocolatey.
+        ///   Looks up a localized string similar to PSAU.
         /// </summary>
         public static string SourcesView_Choco {
             get {

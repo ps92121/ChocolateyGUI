@@ -37,7 +37,7 @@ namespace ChocolateyGui.Services
             _lock = new AsyncSemaphore(1);
         }
 
-        public ShellView ShellView { get; set; }
+        public PsShellView ShellView { get; set; }
 
         public double Progress { get; private set; }
 

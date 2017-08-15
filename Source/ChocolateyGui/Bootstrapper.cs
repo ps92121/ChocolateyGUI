@@ -103,7 +103,7 @@ namespace ChocolateyGui
                 elevationProvider.IsBackgroundRunning = backgroundFeature?.Enabled ?? false;
 
                 App.SplashScreen.Close(TimeSpan.FromMilliseconds(300));
-                DisplayRootViewFor<ShellViewModel>();
+                DisplayRootViewFor<PsShellViewModel>();
             }
             catch (Exception ex)
             {
