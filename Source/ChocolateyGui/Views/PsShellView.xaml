@@ -13,106 +13,53 @@
                    mc:Ignorable="d" Height="768" Width="1366" GlowBrush="{StaticResource HighlightBrush}"
                    d:DataContext="{d:DesignInstance Type=local:ShellViewModel}"
                    SaveWindowPosition="True"
-                   Icon="../chocolateyicon.ico"
                    TitleForeground="Transparent">
-    <Window.CommandBindings>
-        <CommandBinding
-            Command="NavigationCommands.GoToPage"
-            Executed="PerformGoToPage"
-            CanExecute="CanGoToPage" />
-    </Window.CommandBindings>
-    <Window.Title>
-        <PriorityBinding>
-            <Binding Path="ActiveItem.DisplayName"></Binding>
-            <Binding Path="DisplayName"></Binding>
-        </PriorityBinding>
-    </Window.Title>
-    
-    <metro:MetroWindow.WindowButtonCommands>
-        <metro:WindowButtonCommands Template="{DynamicResource MahApps.Metro.Templates.WindowButtonCommands.Win10}" />
-    </metro:MetroWindow.WindowButtonCommands>
-    
-    <metro:MetroWindow.RightWindowCommands>
-        <metro:WindowCommands>
-						<Button x:Name="ShowSettings" Content="{x:Static lang:Resources.ShellView_ButtonSettings}" ClickMode="Release" cal:Message.Attach="ShowSettings()"/>
-						<Button x:Name="ShowAbout" Content="{x:Static lang:Resources.ShellView_ButtonAbout}" ClickMode="Release" Visibility="Collapsed" />
-        </metro:WindowCommands>
-    </metro:MetroWindow.RightWindowCommands>
+  <!--Icon="../chocolateyicon.ico"-->
+  <Window.CommandBindings>
+    <CommandBinding
+      Command="NavigationCommands.GoToPage"
+      Executed="PerformGoToPage"
+      CanExecute="CanGoToPage" />
+  </Window.CommandBindings>
+  <Window.Title>
+    <PriorityBinding>
+      <Binding Path="ActiveItem.DisplayName" />
+      <Binding Path="DisplayName" />
+    </PriorityBinding>
+  </Window.Title>
 
-    <!--<metro:MetroWindow.Flyouts>
-        <metro:FlyoutsControl>
-            <metro:Flyout x:Name="AboutFlyout" Header="About" Position="Right" Width="540" Theme="Accent">
-                <Border Background="White">
-                    <metro:MetroAnimatedSingleRowTabControl>
-                        <TabItem Header="About">
-                            <Grid>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="*" />
-                                </Grid.RowDefinitions>
-                                <TextBlock Grid.Row="0" Margin="10"
-                                           Style="{StaticResource VersionNumberTextBlockStyle}"
-                                           Text="{Binding VersionNumber}" />
-                                <FlowDocumentScrollViewer
-                                    Grid.Row="1"
-                                    Name="AboutInformation" AutomationProperties.Name="About Information"
-                                    VerticalAlignment="Stretch"
-                                    HorizontalAlignment="Stretch"
-                                    Margin="10"
-                                    Document="{Binding AboutInformation, Converter={StaticResource TextToFlowDocumentConverter}, IsAsync=True}" />
-                            </Grid>
-                        </TabItem>
-                        <TabItem Header="Release Notes">
-                            <FlowDocumentScrollViewer
-                                Name="ReleaseInformation" AutomationProperties.Name="Release Information"
-                                VerticalAlignment="Stretch"
-                                HorizontalAlignment="Stretch"
-                                Margin="10"
-                                Document="{Binding ReleaseNotes, Converter={StaticResource TextToFlowDocumentConverter}, IsAsync=True}" />
-                        </TabItem>
-                        <TabItem Header="Credits">
-                            <FlowDocumentScrollViewer
-                                Name="Credits" AutomationProperties.Name="Credits"
-                                VerticalAlignment="Stretch"
-                                HorizontalAlignment="Stretch"
-                                Margin="10"
-                                Document="{Binding Credits, Converter={StaticResource TextToFlowDocumentConverter}, IsAsync=True}" />
-                        </TabItem>
-                    </metro:MetroAnimatedSingleRowTabControl>
-                </Border>
-            </metro:Flyout>
-            <metro:Flyout x:Name="SettingsFlyout" Header="Settings" Position="Right" Width="500" Theme="Accent">
-                <StackPanel>
-                    <Button x:Name="SourcesButton" HorizontalAlignment="Stretch"
-                            Style="{StaticResource SetttingsButtonStyle}" Click="SourcesButton_OnClick">
-                        Sources
-                    </Button>
-                </StackPanel>
-            </metro:Flyout>
-            <metro:Flyout x:Name="SourcesFlyout" Header="Settings" Position="Right" Width="500" Theme="Accent">
-                <StackPanel Margin="10,0">
-                    <DataGrid x:Name="SourcesDataGrid" AutoGenerateColumns="False"
-                              ItemsSource="{Binding Sources}" IsReadOnly="True"
-                              SelectedItem="{Binding SelectedSource}" Margin="4">
-                        <DataGrid.Columns>
-                            <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="1*" />
-                            <DataGridTextColumn Header="Url" Binding="{Binding Url}" Width="1*" />
-                        </DataGrid.Columns>
-                    </DataGrid>
-                    <Button Command="{commands:DataContextCommandAdapter RemoveSource, CanRemoveSource}" Margin="4">Remove Source</Button>
-                    <TextBlock Margin="4,10,0,0">Name:</TextBlock>
-                    <TextBox Text="{Binding NewSourceName, UpdateSourceTrigger=PropertyChanged}" Margin="4" />
-                    <TextBlock Margin="4,0,0,0">Url:</TextBlock>
-                    <TextBox Text="{Binding NewSourceUrl, UpdateSourceTrigger=PropertyChanged}" Margin="4" />
-                    <Button Command="{commands:DataContextCommandAdapter AddSource, CanAddSource}" Margin="4">Add Source</Button>
-                </StackPanel>
-            </metro:Flyout>
-        </metro:FlyoutsControl>
-    </metro:MetroWindow.Flyouts>-->
+  <metro:MetroWindow.WindowButtonCommands>
+    <metro:WindowButtonCommands Template="{DynamicResource MahApps.Metro.Templates.WindowButtonCommands.Win10}" />
+  </metro:MetroWindow.WindowButtonCommands>
 
-    <Border Background="{StaticResource BackgroundColorBrush}">
-        <Grid>
-            <ContentControl x:Name="ActiveItem" />
-        </Grid>
-    </Border>
+  <metro:MetroWindow.RightWindowCommands>
+    <metro:WindowCommands>
+      <Button x:Name="ShowSettings" Content="{x:Static lang:Resources.ShellView_ButtonSettings}" ClickMode="Release"
+              cal:Message.Attach="ShowSettings()" />
+      <Button x:Name="ShowAbout" Content="{x:Static lang:Resources.ShellView_ButtonAbout}" ClickMode="Release"
+              Visibility="Collapsed" />
+    </metro:WindowCommands>
+  </metro:MetroWindow.RightWindowCommands>
+
+
+  <Border>
+    <DockPanel>
+      <StackPanel DockPanel.Dock="Top">
+
+                <StackPanel Orientation="Horizontal" Background="{StaticResource HeaderBackgroundImage}">
+          <TextBlock Text="{x:Static lang:Resources.ShellView_Procede}" FontSize="30" FontWeight="SemiBold"
+                     Padding="10,0,0,5" Foreground="{StaticResource ProcedeBrush}" />
+          <TextBlock Text="{x:Static lang:Resources.ShellView_Choco}" FontSize="30" FontWeight="SemiBold"
+                     Padding="10,0,0,5" Foreground="{StaticResource WhiteBrush}" />
+        </StackPanel>
+
+                <Rectangle HorizontalAlignment="Stretch" Fill="{StaticResource ProcedeBrush}" Height="6" />
+
+      </StackPanel>
+
+      <Grid>
+        <ContentControl x:Name="ActiveItem" />
+      </Grid>
+    </DockPanel>
+  </Border>
 </metro:MetroWindow>

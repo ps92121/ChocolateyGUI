@@ -965,7 +965,7 @@ namespace ChocolateyGui.Properties {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to This Machine.
+        ///   Looks up a localized string similar to This Machine [Installed].
         /// </summary>
         public static string Resources_ThisPC {
             get {
@@ -1280,7 +1280,7 @@ namespace ChocolateyGui.Properties {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to ChocolateyGUI - Settings.
+        ///   Looks up a localized string similar to PSAU - Settings.
         /// </summary>
         public static string SettingsViewModel_DisplayName {
             get {
@@ -1371,11 +1371,20 @@ namespace ChocolateyGui.Properties {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to PSAU.
+        ///   Looks up a localized string similar to Package Manager.
         /// </summary>
-        public static string SourcesView_Choco {
+        public static string ShellView_Choco {
             get {
-                return ResourceManager.GetString("SourcesView_Choco", resourceCulture);
+                return ResourceManager.GetString("ShellView_Choco", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Procede.
+        /// </summary>
+        public static string ShellView_Procede {
+            get {
+                return ResourceManager.GetString("ShellView_Procede", resourceCulture);
             }
         }
         

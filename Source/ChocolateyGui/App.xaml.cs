@@ -22,6 +22,8 @@ namespace ChocolateyGui
         public static void Main(string[] args)
         {
             var dpi = NativeMethods.GetScaleFactor();
+
+            /*
             var img = "chocolatey.png";
             if (dpi >= 2f)
             {
@@ -34,6 +36,7 @@ namespace ChocolateyGui
 
             SplashScreen = new SplashScreen(img);
             SplashScreen.Show(true, true);
+            */
 
             var application = new App();
             application.InitializeComponent();

@@ -446,10 +446,10 @@ NOTE: Probably only necessary to change in RTL languages.</comment>
     <value>Search:</value>
   </data>
   <data name="Resources_ThisPC" xml:space="preserve">
-    <value>This Machine</value>
+    <value>This Machine [Installed]</value>
   </data>
   <data name="SettingsViewModel_DisplayName" xml:space="preserve">
-    <value>ChocolateyGUI - Settings</value>
+    <value>PSAU - Settings</value>
   </data>
   <data name="SettingsViewModel_FeatureFailedToUpdate" xml:space="preserve">
     <value>Failed to update features. Error:
@@ -570,8 +570,11 @@ NOTE: Probably only necessary to change in RTL languages.</comment>
   <data name="ShellView_ButtonSettings" xml:space="preserve">
     <value>settings</value>
   </data>
-  <data name="SourcesView_Choco" xml:space="preserve">
-    <value>PSAU</value>
+  <data name="ShellView_Procede" xml:space="preserve">
+    <value>Procede</value>
+  </data>
+  <data name="ShellView_Choco" xml:space="preserve">
+    <value>Package Manager</value>
   </data>
   <data name="VersionNumberProvider_VersionFormat" xml:space="preserve">
     <value>Version: {0}</value>

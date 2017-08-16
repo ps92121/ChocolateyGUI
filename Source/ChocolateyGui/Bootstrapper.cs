@@ -24,7 +24,7 @@ namespace ChocolateyGui
 {
     public class Bootstrapper : BootstrapperBase
     {
-        internal const string ApplicationName = "ChocolateyGUI";
+        internal const string ApplicationName = "PSAU";
 
         public Bootstrapper()
         {
@@ -102,7 +102,7 @@ namespace ChocolateyGui
                 var elevationProvider = Elevation.Instance;
                 elevationProvider.IsBackgroundRunning = backgroundFeature?.Enabled ?? false;
 
-                App.SplashScreen.Close(TimeSpan.FromMilliseconds(300));
+                //App.SplashScreen.Close(TimeSpan.FromMilliseconds(300));
                 DisplayRootViewFor<PsShellViewModel>();
             }
             catch (Exception ex)
